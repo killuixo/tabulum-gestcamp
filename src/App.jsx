@@ -151,6 +151,7 @@ export default function App() {
   const [theme, setTheme] = useState('light');
   const [dataStatus, setDataStatus] = useState('loading'); // loading, success, error
   const [data, setData] = useState([]);
+  const [estoque, setEstoque] = useState([]);
   const [viewMode, setViewMode] = useState('dashboard');
   const [activeDetail, setActiveDetail] = useState(null); 
   const [currentPage, setCurrentPage] = useState(1);
@@ -192,9 +193,9 @@ export default function App() {
         
         const result = await response.json();
         
-        // CORREÇÃO: Suporta o objeto { entregas, estoque } retornado pelo Apps Script.
         if (result && result.entregas && Array.isArray(result.entregas)) {
           setData(result.entregas);
+          setEstoque(result.estoque || []);
           setDataStatus('success');
         } else if (Array.isArray(result) && result.length > 0) {
           setData(result);
@@ -558,6 +559,9 @@ export default function App() {
             </button>
             <button onClick={() => handleNavigate('cards')} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${viewMode === 'cards' ? 'bg-[#1E1E1E] text-white shadow-md border border-gray-600' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'}`}>
               <Icons.Grid /> Cards
+            </button>
+            <button onClick={() => handleNavigate('estoque')} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${viewMode === 'estoque' ? 'bg-[#2A9D8F] text-white shadow-md' : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'}`}>
+              <Icons.Package /> Estoque
             </button>
           </div>
           <div className="text-sm font-medium bg-black/10 dark:bg-white/10 px-4 py-2 rounded-full flex items-center gap-2">
@@ -925,6 +929,35 @@ export default function App() {
                   </div>
                 )}
                 {filteredData.length === 0 && <div className="p-8 text-center opacity-50">Nenhum card encontrado.</div>}
+              </div>
+            )}
+
+            {/* View: Estoque */}
+            {viewMode === 'estoque' && (
+              <div className={`rounded-xl shadow-sm border overflow-hidden animate-in fade-in ${cardClass}`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead className={`bg-black/5 dark:bg-white/5 border-b ${theme==='dark'?'border-gray-700':'border-gray-200'}`}>
+                      <tr>
+                        <th className="p-4 font-bold text-sm">Categoria</th>
+                        <th className="p-4 font-bold text-sm">Formato</th>
+                        <th className="p-4 font-bold text-sm">Quantidade Total</th>
+                        <th className="p-4 font-bold text-sm">Descrição</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {estoque.map((item, i) => (
+                        <tr key={i} className={`border-b last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${theme==='dark'?'border-gray-800':'border-gray-100'}`}>
+                          <td className="p-4 font-medium text-teal-600 dark:text-teal-400">{item['Categoria'] || '-'}</td>
+                          <td className="p-4">{item['Formato'] || '-'}</td>
+                          <td className="p-4 font-bold">{item['Quantidade Total'] || 0}</td>
+                          <td className="p-4 text-sm opacity-80 whitespace-normal min-w-[200px]">{item['Descrição / Especificações'] || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {estoque.length === 0 && <div className="p-8 text-center opacity-50">Nenhum dado de estoque encontrado.</div>}
               </div>
             )}
           </>
