@@ -612,24 +612,44 @@ export default function App() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase opacity-70 mb-1">Articulador</label>
-                      <input type="text" value={draftItem.articulador} onChange={(e) => handleDraftChange('articulador', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
+                      <input type="text" value={draftItem.articulador || ''} onChange={(e) => handleDraftChange('articulador', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
                     </div>
                   </div>
                   
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase opacity-70 mb-1">Material</label>
-                      <select value={draftItem.material} onChange={(e) => handleDraftChange('material', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`}>
-                        {METADATA.materiais.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold uppercase opacity-70 mb-1">Material</label>
+                        <select value={draftItem.material || ''} onChange={(e) => handleDraftChange('material', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`}>
+                          {METADATA.materiais.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold uppercase opacity-70 mb-1">Prioridade</label>
+                        <select value={draftItem.prioridade || ''} onChange={(e) => handleDraftChange('prioridade', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`}>
+                          <option value="">Normal</option>
+                          <option value="Alta">Alta</option>
+                          <option value="Urgente">Urgente</option>
+                        </select>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase opacity-70 mb-1">Endereço da Liderança</label>
-                      <input type="text" value={draftItem.endereco} onChange={(e) => handleDraftChange('endereco', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
+                      <input type="text" value={draftItem.endereco || ''} onChange={(e) => handleDraftChange('endereco', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold uppercase opacity-70 mb-1">Telefone</label>
+                        <input type="text" value={draftItem.telefone || ''} onChange={(e) => handleDraftChange('telefone', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold uppercase opacity-70 mb-1">Link (Drive/Maps)</label>
+                        <input type="text" value={draftItem.link || ''} onChange={(e) => handleDraftChange('link', e.target.value)} className={`w-full p-3 rounded-lg border outline-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase opacity-70 mb-1">Observações</label>
-                      <textarea rows="2" value={draftItem.observacao} onChange={(e) => handleDraftChange('observacao', e.target.value)} className={`w-full p-3 rounded-lg border outline-none resize-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
+                      <textarea rows="2" value={draftItem.observacao || ''} onChange={(e) => handleDraftChange('observacao', e.target.value)} className={`w-full p-3 rounded-lg border outline-none resize-none ${theme === 'dark' ? 'bg-[#333] border-gray-600' : 'bg-white border-gray-300'}`} />
                     </div>
                   </div>
                 </div>
