@@ -37,20 +37,6 @@ const Icons = {
   Loader: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
 };
 
-const initialMockData = [
-  { id: 1, articulador: 'Laura', temCarro: 'Sim', regiaoArticulador: 'Grande Florianópolis', tema: 'Juventude', lideranca: 'Comitê Central', municipio: 'Florianópolis', bairro: 'Centro', regiaoFloripa: 'Centro', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Santinhos', quantidadeSolicitada: 5000, quantidadeEntregue: 3000, situacao: 'ENTREGUE PARCIAL', endereco: 'Rua Central, 10', telefone: '4891277845', email: 'laura@campanha.com', observacao: 'Falta entregar o restante', fase: 'Fase 1', dataPrazo: '2026-08-20', prioridade: 'Alta' },
-  { id: 2, articulador: 'Laura', temCarro: 'Sim', regiaoArticulador: 'Grande Florianópolis', tema: 'Juventude', lideranca: 'Comitê Central', municipio: 'Florianópolis', bairro: 'Centro', regiaoFloripa: 'Centro', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Furadinhos Bola', quantidadeSolicitada: 50, quantidadeEntregue: 20, situacao: 'ENTREGUE PARCIAL', endereco: 'Rua Central, 10', telefone: '4891277845', email: '', observacao: '', fase: 'Fase 1', dataPrazo: '2026-08-20', prioridade: 'Alta' },
-  { id: 3, articulador: 'Laura', temCarro: 'Sim', regiaoArticulador: 'Grande Florianópolis', tema: 'Juventude', lideranca: 'Comitê Central', municipio: 'Florianópolis', bairro: 'Centro', regiaoFloripa: 'Centro', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Furadinhos Retangular', quantidadeSolicitada: 10, quantidadeEntregue: 10, situacao: 'ENTREGUE', endereco: 'Rua Central, 10', telefone: '4891277845', email: '', observacao: '', fase: 'Fase 1', dataPrazo: '2026-08-20', prioridade: 'Baixa' },
-  { id: 4, articulador: 'Laura', temCarro: 'Sim', regiaoArticulador: 'Grande Florianópolis', tema: 'Juventude', lideranca: 'Comitê Central', municipio: 'Florianópolis', bairro: 'Centro', regiaoFloripa: 'Centro', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Santão', quantidadeSolicitada: 3000, quantidadeEntregue: 2198, situacao: 'ENTREGUE PARCIAL', endereco: 'Rua Central, 10', telefone: '4891277845', email: '', observacao: '', fase: 'Fase 1', dataPrazo: '2026-08-20', prioridade: 'Alta' },
-  { id: 5, articulador: 'Liandra', temCarro: 'Não', regiaoArticulador: 'Norte da Ilha', tema: 'Mulheres', lideranca: 'Associação Bairro', municipio: 'Florianópolis', bairro: 'Canasvieiras', regiaoFloripa: 'Norte', distrito: 'Canasvieiras', associacao: 'GRANFPOLIS', material: 'Santão', quantidadeSolicitada: 2, quantidadeEntregue: 2, situacao: 'ENTREGUE', endereco: 'Av. das Nações', telefone: '', email: '', observacao: '', fase: 'Fase 1', dataPrazo: '2026-08-22', prioridade: 'Média' },
-  { id: 6, articulador: 'Liandra', temCarro: 'Não', regiaoArticulador: 'Norte da Ilha', tema: 'Mulheres', lideranca: 'Associação Bairro', municipio: 'Florianópolis', bairro: 'Canasvieiras', regiaoFloripa: 'Norte', distrito: 'Canasvieiras', associacao: 'GRANFPOLIS', material: 'Santinhos', quantidadeSolicitada: 6, quantidadeEntregue: 6, situacao: 'ENTREGUE', endereco: 'Av. das Nações', telefone: '', email: '', observacao: '', fase: 'Fase 1', dataPrazo: '2026-08-22', prioridade: 'Média' },
-  { id: 7, articulador: 'Carlos Aguiar', temCarro: 'Sim', regiaoArticulador: 'Continente', tema: 'Logística', lideranca: 'Toninho', municipio: 'Florianópolis', bairro: 'Coqueiros', regiaoFloripa: 'Continente', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Furadinhos Retangular', quantidadeSolicitada: 20, quantidadeEntregue: 20, situacao: 'ENTREGUE', endereco: 'Praça Coqueiros', telefone: '4896334007', email: '', observacao: 'Levado pelo Toninho no Adesivaço', fase: 'Adesivaço', dataPrazo: '2026-08-16', prioridade: 'Alta' },
-  { id: 8, articulador: 'Maíra', temCarro: 'Sim', regiaoArticulador: 'Grande Florianópolis', tema: 'Eventos', lideranca: 'Estandes', municipio: 'Florianópolis', bairro: 'Centro', regiaoFloripa: 'Centro', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Santão', quantidadeSolicitada: 632, quantidadeEntregue: 632, situacao: 'ENTREGUE', endereco: 'Largo da Alfândega', telefone: '', email: '', observacao: '2 caixas fechadas + 4 unidades avulsas', fase: 'Estandes', dataPrazo: '2026-08-17', prioridade: 'Alta' },
-  { id: 9, articulador: 'Maíra', temCarro: 'Sim', regiaoArticulador: 'Grande Florianópolis', tema: 'Eventos', lideranca: 'Estandes', municipio: 'Florianópolis', bairro: 'Centro', regiaoFloripa: 'Centro', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Santinhos', quantidadeSolicitada: 12000, quantidadeEntregue: 12000, situacao: 'ENTREGUE', endereco: 'Largo da Alfândega', telefone: '', email: '', observacao: '12 maços', fase: 'Estandes', dataPrazo: '2026-08-17', prioridade: 'Alta' },
-  { id: 10, articulador: 'João', temCarro: 'Sim', regiaoArticulador: 'Foz do Itajaí', tema: 'Geral', lideranca: 'Sindicato', municipio: 'Itajaí', bairro: '', regiaoFloripa: '', distrito: '', associacao: 'AMFRI', material: 'Praguinha', quantidadeSolicitada: 1000, quantidadeEntregue: 0, situacao: 'A ENTREGAR', endereco: 'Rua do Porto', telefone: '4799999999', email: '', observacao: '', fase: 'Fase 2', dataPrazo: '2026-08-25', prioridade: 'Média' },
-  { id: 11, articulador: 'Fernando', temCarro: 'Sim', regiaoArticulador: 'Continente', tema: 'Logística', lideranca: 'Estoque Móvel', municipio: 'Florianópolis', bairro: 'Estreito', regiaoFloripa: 'Continente', distrito: 'Sede', associacao: 'GRANFPOLIS', material: 'Furadinhos Retangular', quantidadeSolicitada: 26, quantidadeEntregue: 26, situacao: 'ENTREGUE', endereco: 'Carro do Fernando', telefone: '', email: '', observacao: 'Sobras do adesivaço', fase: 'Adesivaço', dataPrazo: '2026-08-16', prioridade: 'Baixa' }
-];
-
 const METADATA = {
   situacoes: ['A ENTREGAR', 'ENTREGUE PARCIAL', 'ENTREGUE'],
   materiais: ['Santinhos', 'Santão', 'Furadinhos Bola', 'Furadinhos Retangular', 'Praguinha']
@@ -174,20 +160,39 @@ export default function App() {
     situacao: [], bairro: [], regiaoFloripa: [], distrito: [], fase: []
   });
 
-  // Simulação de busca inicial da Planilha (Fetch Simulation)
+  // Busca inicial da Planilha (Sincronização ao Iniciar)
   useEffect(() => {
     const fetchData = async () => {
       setDataStatus('loading');
       try {
-        // Simula o tempo de rede
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        // Aqui no futuro ficará o fetch real para a Google Sheets API
-        setData(initialMockData);
-        setDataStatus('success');
+        // Verifica se a URL da API da planilha existe (Variável de Ambiente no Vercel)
+        // Isso impede que o app fique carregando eternamente se não houver configuração.
+        const apiUrl = import.meta.env?.VITE_SHEETS_API_URL;
+        
+        if (!apiUrl) {
+          // Falha rápida e otimizada: Interrompe o carregamento na hora
+          throw new Error("URL da planilha não configurada.");
+        }
+
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          throw new Error("Falha na comunicação com a planilha.");
+        }
+        
+        const result = await response.json();
+        
+        if (Array.isArray(result) && result.length > 0) {
+          setData(result);
+          setDataStatus('success');
+        } else {
+          throw new Error("Planilha vazia ou em formato incorreto.");
+        }
       } catch (error) {
+        console.error("Erro ao sincronizar dados:", error);
         setDataStatus('error');
       }
     };
+    
     fetchData();
   }, []);
 
@@ -519,18 +524,21 @@ export default function App() {
 
         {/* Feedback de Carregamento / Erro */}
         {dataStatus === 'loading' && (
-          <div className="flex flex-col items-center justify-center h-64 opacity-60">
-            <div className="mb-4 text-teal-500"><Icons.Loader /></div>
-            <p>Sincronizando com a Planilha Google...</p>
+          <div className="flex flex-col items-center justify-center h-64 opacity-80 animate-in fade-in">
+            <div className="mb-4 text-teal-500 scale-150"><Icons.Loader /></div>
+            <h2 className="text-xl font-bold mb-2">Sincronizando...</h2>
+            <p>Baixando informações da Planilha Google.</p>
           </div>
         )}
 
         {dataStatus === 'error' && (
-          <div className={`p-6 rounded-xl border-l-4 border-red-500 shadow-md ${cardClass} flex flex-col items-center justify-center text-center py-12`}>
+          <div className={`p-6 rounded-xl border-l-4 border-red-500 shadow-md ${cardClass} flex flex-col items-center justify-center text-center py-12 animate-in fade-in zoom-in-95`}>
             <div className="text-red-500 mb-4 scale-150"><Icons.Alert /></div>
-            <h2 className="text-xl font-bold mb-2">Erro de Sincronização</h2>
-            <p className="opacity-70 max-w-md">Não foi possível recuperar as informações da planilha no momento. Verifique sua conexão ou se as variáveis de ambiente (Google Sheets API) estão configuradas corretamente no Vercel.</p>
-            <button onClick={() => window.location.reload()} className="mt-6 px-6 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600">Tentar Novamente</button>
+            <h2 className="text-2xl font-black mb-2" style={{ color: COLORS.crimson }}>Planilha Não Carregada</h2>
+            <p className="opacity-70 max-w-md mb-8">Não foi possível sincronizar os dados. A integração com o Google Sheets ainda não foi configurada no Vercel ou ocorreu um problema de conexão.</p>
+            <button onClick={() => window.location.reload()} className="px-6 py-3 rounded-lg font-bold bg-[#2A9D8F] text-white hover:bg-[#21867a] transition-colors flex items-center gap-2 shadow-lg">
+              <Icons.Loader /> Tentar Sincronizar Novamente
+            </button>
           </div>
         )}
 
