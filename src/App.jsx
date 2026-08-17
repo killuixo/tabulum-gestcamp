@@ -34,7 +34,18 @@ const Icons = {
   Save: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
   X: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   Check: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
-  Loader: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
+  Loader: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="animate-spin">
+      <defs>
+        <linearGradient id="gestcamp-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#E5B13A" />   {/* Mostarda */}
+          <stop offset="50%" stopColor="#D93846" />  {/* Carmesim */}
+          <stop offset="100%" stopColor="#2A9D8F" /> {/* Azul Esverdeado */}
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10" stroke="url(#gestcamp-grad)" strokeWidth="4" strokeLinecap="round" strokeDasharray="45 18" />
+    </svg>
+  )
 };
 
 const METADATA = {
@@ -253,19 +264,40 @@ export default function App() {
   };
 
   const confirmSave = async () => {
-    // Simula salvamento na planilha
-    setData(prev => prev.map(item => item.id === draftItem.id ? draftItem : item));
-    setShowConfirmModal(false);
-    setHasUnsavedChanges(false);
-    
-    // Toast notification
-    setToastMessage('Alterações salvas com sucesso!');
-    setTimeout(() => setToastMessage(''), 3000);
+    try {
+      const apiUrl = import.meta.env?.VITE_SHEETS_API_URL;
+      if (!apiUrl) throw new Error("URL da planilha não configurada.");
 
-    if (pendingNavigation) {
-      executeNavigation(pendingNavigation.view, pendingNavigation.detail);
-    } else {
-      executeNavigation('list', null);
+      // Atualização otimista na UI (mostra sucesso pro usuário enquanto salva no fundo)
+      setData(prev => prev.map(item => item.id === draftItem.id ? draftItem : item));
+      setShowConfirmModal(false);
+      setHasUnsavedChanges(false);
+      
+      // Envia a requisição POST para o Google Apps Script
+      // Usamos text/plain para contornar bloqueios de CORS automáticos dos navegadores
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(draftItem)
+      });
+
+      if (!response.ok) throw new Error("Erro ao salvar na planilha");
+
+      // Notificação de sucesso
+      setToastMessage('Alterações salvas com sucesso!');
+      setTimeout(() => setToastMessage(''), 3000);
+
+      if (pendingNavigation) {
+        executeNavigation(pendingNavigation.view, pendingNavigation.detail);
+      } else {
+        executeNavigation('list', null);
+      }
+
+    } catch (error) {
+      console.error("Erro no salvamento:", error);
+      alert("Houve um erro ao tentar salvar as alterações na planilha.");
     }
   };
 
