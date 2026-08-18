@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+// Ícones SVG diretos
 const IconUser = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const IconMail = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>;
 const IconPhone = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>;
@@ -9,15 +10,19 @@ const IconAlert = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="no
 const IconCheck = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
 const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
 
-// Lendo URL via Vercel Environment Variables de forma compatível
-const GOOGLE_APPS_SCRIPT_URL = (typeof process !== 'undefined' && process.env && process.env.VITE_SHEETS_API_URL) ? process.env.VITE_SHEETS_API_URL : '';
-
 export default function App() {
+  let envUrl = '';
+  try {
+    envUrl = new Function('return import.meta.env.VITE_SHEETS_API_URL')();
+  } catch (e) {
+    envUrl = '';
+  }
+  const GOOGLE_APPS_SCRIPT_URL = envUrl;
+
   const [articulador, setArticulador] = useState({ nome: '', email: '', telefone: '' });
   const [lideranca, setLideranca] = useState({ nome: '', email: '', telefone: '' });
   
-  // Novos campos de recebimento
-  const [modoRecebimento, setModoRecebimento] = useState(''); // 'Despacho' ou 'Retirada no comitê'
+  const [modoRecebimento, setModoRecebimento] = useState(''); 
   const [regiaoDespacho, setRegiaoDespacho] = useState('Interior de Santa Catarina');
   const [enderecoRecebimento, setEnderecoRecebimento] = useState('');
   const [horarioRetirada, setHorarioRetirada] = useState('');
@@ -34,8 +39,7 @@ export default function App() {
 
   const fetchStockData = async () => {
     try {
-      if(!GOOGLE_APPS_SCRIPT_URL || GOOGLE_APPS_SCRIPT_URL.includes('SUA_URL_AQUI')) {
-        // Fallback visual temporário caso ainda não tenha configurado a Vercel env variable
+      if(!GOOGLE_APPS_SCRIPT_URL) {
         setTimeout(() => {
           setEstoque([
             { id: 1, nome: "Santinhos", total: 100000, disponivel: 56000 },
@@ -63,10 +67,8 @@ export default function App() {
   const handleQuantidadeChange = (id, quantidadeNova) => {
     const material = estoque.find(m => m.id === id);
     let qtd = parseInt(quantidadeNova) || 0;
-    
     if (qtd > material.disponivel) qtd = material.disponivel;
     if (qtd < 0) qtd = 0;
-
     setPedidos(prev => ({ ...prev, [id]: qtd }));
   };
 
@@ -75,7 +77,6 @@ export default function App() {
     setSubmitting(true);
     setMensagem(null);
 
-    // Validações Manuais
     if (!modoRecebimento) {
       setMensagem({ tipo: 'erro', texto: 'Selecione um Modo de Recebimento (Despacho ou Retirada).' });
       setSubmitting(false); return;
@@ -107,9 +108,7 @@ export default function App() {
     }
 
     const payload = {
-      articulador,
-      lideranca,
-      modoRecebimento,
+      articulador, lideranca, modoRecebimento,
       regiaoDespacho: modoRecebimento === 'Despacho' ? regiaoDespacho : '',
       enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Comitê',
       horarioRetirada: modoRecebimento === 'Retirada no comitê' ? horarioRetirada : '',
@@ -117,52 +116,28 @@ export default function App() {
     };
 
     try {
-      const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+      if(!GOOGLE_APPS_SCRIPT_URL) throw new Error("VITE_SHEETS_API_URL ausente");
+
+      // Usando no-cors para evitar bloqueios de navegadores ao enviar dados
+      await fetch(GOOGLE_APPS_SCRIPT_URL, {
         method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
       
-      const result = await response.json();
+      setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso!' });
+      setArticulador({ nome: '', email: '', telefone: '' });
+      setLideranca({ nome: '', email: '', telefone: '' });
+      setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada('');
       
-      if (result.status === 'success') {
-        setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso!' });
-        // Limpar form
-        setArticulador({ nome: '', email: '', telefone: '' });
-        setLideranca({ nome: '', email: '', telefone: '' });
-        setPedidos({});
-        setModoRecebimento('');
-        setEnderecoRecebimento('');
-        setHorarioRetirada('');
-      } else {
-        throw new Error(result.message || 'Erro desconhecido');
-      }
     } catch (error) {
-      setMensagem({ tipo: 'erro', texto: 'Falha ao enviar. Verifique VITE_SHEETS_API_URL.' });
+      console.error(error);
+      setMensagem({ tipo: 'erro', texto: `Erro de conexão. A URL está configurada? (${GOOGLE_APPS_SCRIPT_URL ? 'Sim' : 'Não'})` });
     } finally {
       setSubmitting(false);
     }
   };
-
-  const InputGroup = ({ icon: Icon, label, value, onChange, placeholder, type = "text", required = false }) => (
-    <div className="mb-4">
-      <label className="block text-sm font-bold text-slate-800 mb-1">
-        {label} {required && <span className="text-[#DC143C]">*</span>}
-      </label>
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-          <Icon />
-        </div>
-        <input
-          type={type}
-          required={required}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 focus:bg-white transition-colors"
-        />
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (
@@ -187,51 +162,75 @@ export default function App() {
 
       <form onSubmit={handleSubmit} className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
         
-        {/* Articulador */}
+        {}
         <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
           <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
             <IconUser />
             <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
           </div>
-          <InputGroup 
-            icon={IconUser} label="Nome Completo" placeholder="Quem está registrando?" 
-            value={articulador.nome} onChange={e => setArticulador({...articulador, nome: e.target.value})} required={true}
-          />
-          <InputGroup 
-            icon={IconMail} label="E-mail" type="email" placeholder="Opcional" 
-            value={articulador.email} onChange={e => setArticulador({...articulador, email: e.target.value})} 
-          />
-          <InputGroup 
-            icon={IconPhone} label="Telefone / WhatsApp" type="tel" placeholder="Opcional" 
-            value={articulador.telefone} onChange={e => setArticulador({...articulador, telefone: e.target.value})} 
-          />
+          
+          {/* Inputs embutidos diretos para evitar perda de foco */}
+          <div className="mb-4">
+            <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500"><IconUser /></div>
+              <input type="text" required value={articulador.nome} onChange={e => setArticulador({...articulador, nome: e.target.value})} placeholder="Quem está registrando?" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500"><IconMail /></div>
+              <input type="email" value={articulador.email} onChange={e => setArticulador({...articulador, email: e.target.value})} placeholder="Opcional" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500"><IconPhone /></div>
+              <input type="tel" value={articulador.telefone} onChange={e => setArticulador({...articulador, telefone: e.target.value})} placeholder="Opcional" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
+            </div>
+          </div>
         </div>
 
-        {/* Liderança */}
+        {}
         <div className="md:col-span-7 bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
            <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
             <IconUsers />
             <h2 className="text-2xl font-bold">Liderança de Destino</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
-            <div className="md:col-span-2">
-              <InputGroup 
-                icon={IconUser} label="Nome da Liderança" placeholder="Quem vai receber e distribuir?" 
-                value={lideranca.nome} onChange={e => setLideranca({...lideranca, nome: e.target.value})} required={true}
-              />
+            
+            <div className="md:col-span-2 mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500"><IconUser /></div>
+                <input type="text" required value={lideranca.nome} onChange={e => setLideranca({...lideranca, nome: e.target.value})} placeholder="Quem vai receber e distribuir?" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
+              </div>
             </div>
-            <InputGroup 
-              icon={IconMail} label="E-mail" type="email" placeholder="Opcional" 
-              value={lideranca.email} onChange={e => setLideranca({...lideranca, email: e.target.value})} 
-            />
-            <InputGroup 
-              icon={IconPhone} label="Telefone" type="tel" placeholder="Opcional" 
-              value={lideranca.telefone} onChange={e => setLideranca({...lideranca, telefone: e.target.value})} 
-            />
+
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500"><IconMail /></div>
+                <input type="email" value={lideranca.email} onChange={e => setLideranca({...lideranca, email: e.target.value})} placeholder="Opcional" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500"><IconPhone /></div>
+                <input type="tel" value={lideranca.telefone} onChange={e => setLideranca({...lideranca, telefone: e.target.value})} placeholder="Opcional" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
+              </div>
+            </div>
+
           </div>
         </div>
 
-        {/* Modo de Recebimento */}
+        {}
         <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
            <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
             <IconTruck />
@@ -239,7 +238,6 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Opção 1: Despacho */}
             <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setModoRecebimento('Despacho')}>
               <div className="flex items-center mb-3">
                 <input type="radio" checked={modoRecebimento === 'Despacho'} readOnly className="w-5 h-5 mr-3 accent-[#20B2AA]" />
@@ -250,32 +248,20 @@ export default function App() {
                 <div className="mt-4 space-y-4 pl-8">
                   <div>
                     <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
-                    <select 
-                      className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white"
-                      value={regiaoDespacho} onChange={(e) => setRegiaoDespacho(e.target.value)}
-                    >
+                    <select className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white" value={regiaoDespacho} onChange={(e) => setRegiaoDespacho(e.target.value)}>
                       <option value="Interior de Santa Catarina">Interior de Santa Catarina</option>
                       <option value="Florianópolis">Florianópolis</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-1">
-                      Endereço de recebimento <span className="text-[#DC143C]">*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder={regiaoDespacho === 'Florianópolis' ? 'Ex: Rua X, Bairro Y...' : 'Ex: Município - SC'}
-                      value={enderecoRecebimento} 
-                      onChange={e => setEnderecoRecebimento(e.target.value)}
-                      className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white focus:border-[#20B2AA] focus:outline-none"
-                    />
+                    <label className="block text-sm font-bold text-slate-800 mb-1">Endereço de recebimento <span className="text-[#DC143C]">*</span></label>
+                    <input type="text" placeholder={regiaoDespacho === 'Florianópolis' ? 'Ex: Rua X, Bairro Y...' : 'Ex: Município - SC'} value={enderecoRecebimento} onChange={e => setEnderecoRecebimento(e.target.value)} className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white focus:border-[#20B2AA] focus:outline-none" />
                     {regiaoDespacho === 'Florianópolis' && <p className="text-xs text-[#DC143C] mt-1 font-bold">Obrigatório informar o bairro para envios em Florianópolis.</p>}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Opção 2: Retirada */}
             <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Retirada no comitê' ? 'border-[#DC143C] bg-[#DC143C]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setModoRecebimento('Retirada no comitê')}>
               <div className="flex items-center mb-3">
                 <input type="radio" checked={modoRecebimento === 'Retirada no comitê'} readOnly className="w-5 h-5 mr-3 accent-[#DC143C]" />
@@ -284,20 +270,12 @@ export default function App() {
               
               {modoRecebimento === 'Retirada no comitê' && (
                 <div className="mt-4 pl-8">
-                  <div className="p-3 bg-white border-2 border-slate-300 rounded-lg mb-4 text-sm font-bold text-slate-700">
-                    Rua Tiradentes, 55 - Centro, Florianópolis - SC.
-                  </div>
-                  <label className="block text-sm font-bold text-slate-800 mb-2">
-                    Horário da retirada <span className="text-[#DC143C]">*</span>
-                  </label>
+                  <div className="p-3 bg-white border-2 border-slate-300 rounded-lg mb-4 text-sm font-bold text-slate-700">Rua Tiradentes, 55 - Centro, Florianópolis - SC.</div>
+                  <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
                   <div className="space-y-2">
                     {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
                       <label key={hora} className="flex items-center space-x-2 cursor-pointer">
-                        <input 
-                          type="radio" name="horario" value={hora} 
-                          checked={horarioRetirada === hora} onChange={(e) => setHorarioRetirada(e.target.value)}
-                          className="w-4 h-4 accent-[#DC143C]"
-                        />
+                        <input type="radio" name="horario" value={hora} checked={horarioRetirada === hora} onChange={(e) => setHorarioRetirada(e.target.value)} className="w-4 h-4 accent-[#DC143C]"/>
                         <span>{hora}</span>
                       </label>
                     ))}
@@ -308,7 +286,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Seleção de Materiais */}
+        {}
         <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
           <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
             <div className="text-[#DC143C]"><IconPackage /></div>
@@ -319,7 +297,6 @@ export default function App() {
             {estoque.map((item) => {
               const porcentagem = item.total > 0 ? ((item.disponivel / item.total) * 100).toFixed(1) : 0;
               const quantidadeEscolhida = pedidos[item.id] || 0;
-              
               let barColor = 'bg-[#20B2AA]'; 
               if (porcentagem < 25) barColor = 'bg-[#DC143C]'; 
               else if (porcentagem < 50) barColor = 'bg-[#E5B80B]'; 
@@ -342,20 +319,9 @@ export default function App() {
                   <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-200">
                     <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Quantidade:</span>
                     <div className="flex items-center space-x-2">
-                      <button 
-                        type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)}
-                        className="w-8 h-8 flex items-center justify-center bg-slate-200 text-slate-700 font-bold rounded-md hover:bg-slate-300"
-                      >-</button>
-                      <input 
-                        type="number" min="0" max={item.disponivel}
-                        value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)}
-                        placeholder="0"
-                        className="w-20 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none"
-                      />
-                      <button 
-                        type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} disabled={quantidadeEscolhida >= item.disponivel}
-                        className="w-8 h-8 flex items-center justify-center bg-slate-200 text-slate-700 font-bold rounded-md hover:bg-slate-300 disabled:opacity-50"
-                      >+</button>
+                      <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-8 h-8 flex items-center justify-center bg-slate-200 text-slate-700 font-bold rounded-md hover:bg-slate-300">-</button>
+                      <input type="number" min="0" max={item.disponivel} value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} placeholder="0" className="w-20 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none"/>
+                      <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} disabled={quantidadeEscolhida >= item.disponivel} className="w-8 h-8 flex items-center justify-center bg-slate-200 text-slate-700 font-bold rounded-md hover:bg-slate-300 disabled:opacity-50">+</button>
                     </div>
                   </div>
                 </div>
@@ -364,7 +330,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Rodapé e Submit */}
+        {}
         <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4">
           <div className="flex-1 w-full mb-4 md:mb-0 pr-0 md:pr-4">
             {mensagem && (
@@ -375,10 +341,7 @@ export default function App() {
             )}
           </div>
 
-          <button 
-            type="submit" disabled={submitting}
-            className="w-full md:w-auto flex items-center justify-center space-x-2 bg-[#DC143C] hover:bg-[#b01030] text-white font-black uppercase tracking-wider py-4 px-10 rounded-xl transition-all hover:scale-105 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] disabled:opacity-70 disabled:hover:scale-100 disabled:shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] border-2 border-white"
-          >
+          <button type="submit" disabled={submitting} className="w-full md:w-auto flex items-center justify-center space-x-2 bg-[#DC143C] hover:bg-[#b01030] text-white font-black uppercase tracking-wider py-4 px-10 rounded-xl transition-all hover:scale-105 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] disabled:opacity-70 disabled:hover:scale-100 border-2 border-white">
             {submitting ? <span>Enviando...</span> : <span>Confirmar Pedido</span>}
           </button>
         </div>
