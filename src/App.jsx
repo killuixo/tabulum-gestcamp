@@ -10,8 +10,6 @@ const IconCheck = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="no
 const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
 
 export default function App() {
-  const GOOGLE_APPS_SCRIPT_URL = import.meta.env && import.meta.env.VITE_SHEETS_API_URL ? import.meta.env.VITE_SHEETS_API_URL : '';
-
   const [articulador, setArticulador] = useState({ nome: '', email: '', telefone: '' });
   const [lideranca, setLideranca] = useState({ nome: '', email: '', telefone: '' });
   
@@ -32,24 +30,28 @@ export default function App() {
 
   const fetchStockData = async () => {
     try {
-      if (!GOOGLE_APPS_SCRIPT_URL) {
-        throw new Error("VITE_SHEETS_API_URL não configurada no ambiente.");
+      const url = import.meta.env.VITE_SHEETS_API_URL;
+      
+      if (!url) {
+        setMensagem({ tipo: 'erro', texto: 'A variável de ambiente VITE_SHEETS_API_URL não foi configurada no Vercel.' });
+        setLoading(false);
+        return;
       }
 
-      const response = await fetch(GOOGLE_APPS_SCRIPT_URL);
-      if (!response.ok) {
-        throw new Error("Falha na comunicação com a planilha.");
-      }
-
+      const response = await fetch(url);
       const data = await response.json();
+
+      if (data.status === 'error') {
+        throw new Error(data.message);
+      }
+
       if (Array.isArray(data) && data.length > 0) {
         setEstoque(data);
       } else {
-         throw new Error("Nenhum estoque encontrado na planilha.");
+        setMensagem({ tipo: 'erro', texto: 'Nenhum material disponível para solicitação no momento.' });
       }
     } catch (error) {
-      console.error("Erro ao carregar estoque:", error);
-      setMensagem({ tipo: 'erro', texto: `Falha ao carregar estoque: ${error.message}` });
+      setMensagem({ tipo: 'erro', texto: `Falha ao carregar estoque: Verifique a URL do script e as permissões (CORS). Detalhe: ${error.message}` });
     } finally {
       setLoading(false);
     }
@@ -80,7 +82,7 @@ export default function App() {
 
     if (modoRecebimento === 'Despacho') {
       if (!enderecoRecebimento.trim()) {
-        setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório.' });
+        setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório para o despacho.' });
         setSubmitting(false); return;
       }
       if (regiaoDespacho === 'Florianópolis' && enderecoRecebimento.trim().length < 8) {
@@ -104,17 +106,19 @@ export default function App() {
     }
 
     const payload = {
-      articulador, lideranca, modoRecebimento,
+      articulador, 
+      lideranca, 
+      modoRecebimento,
       regiaoDespacho: modoRecebimento === 'Despacho' ? regiaoDespacho : '',
-      enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Comitê',
+      enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Retirada Comitê',
       horarioRetirada: modoRecebimento === 'Retirada no comitê' ? horarioRetirada : '',
       materiais: materiaisSolicitados
     };
 
     try {
-      if(!GOOGLE_APPS_SCRIPT_URL) throw new Error("VITE_SHEETS_API_URL ausente.");
-
-      await fetch(GOOGLE_APPS_SCRIPT_URL, {
+      const url = import.meta.env.VITE_SHEETS_API_URL;
+      
+      await fetch(url, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -127,8 +131,7 @@ export default function App() {
       setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada('');
       
     } catch (error) {
-      console.error(error);
-      setMensagem({ tipo: 'erro', texto: `Erro ao enviar dados: ${error.message}` });
+      setMensagem({ tipo: 'erro', texto: `Erro ao enviar dados. Verifique sua conexão.` });
     } finally {
       setSubmitting(false);
     }
@@ -139,7 +142,17 @@ export default function App() {
       <div className="min-h-screen bg-[#F9F6F0] flex flex-col items-center justify-center space-y-4">
         <div className="animate-spin text-[#20B2AA]"><IconPackage /></div>
         <p className="text-slate-600 font-bold">Buscando estoque da planilha...</p>
-        {mensagem && <p className="text-[#DC143C] font-bold mt-4">{mensagem.texto}</p>}
+      </div>
+    );
+  }
+
+  // Previne tela em branco caso ocorra falha ao baixar itens
+  if (estoque.length === 0 && mensagem?.tipo === 'erro') {
+    return (
+      <div className="min-h-screen bg-[#F9F6F0] flex flex-col items-center justify-center p-6 text-center">
+        <div className="text-[#DC143C] mb-4"><IconAlert /></div>
+        <p className="text-[#DC143C] font-bold text-xl mb-4">{mensagem.texto}</p>
+        <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800">Tentar Novamente</button>
       </div>
     );
   }
@@ -225,7 +238,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bloco de Modo de Recebimento */}
+        {}
         <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
            <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
             <IconTruck />
@@ -281,7 +294,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bloco de Materiais */}
+        {}
         <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
           <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
             <div className="text-[#DC143C]"><IconPackage /></div>
@@ -325,7 +338,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Rodapé e Mensagens */}
+        {}
         <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4">
           <div className="flex-1 w-full mb-4 md:mb-0 pr-0 md:pr-4">
             {mensagem && (
