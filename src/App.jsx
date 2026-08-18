@@ -11,13 +11,12 @@ const IconCheck = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="no
 const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
 
 export default function App() {
-  let envUrl = '';
+  let GOOGLE_APPS_SCRIPT_URL = "";
   try {
-    envUrl = new Function('return import.meta.env.VITE_SHEETS_API_URL')();
+    GOOGLE_APPS_SCRIPT_URL = import.meta.env.VITE_SHEETS_API_URL;
   } catch (e) {
-    envUrl = '';
+    // Bloco try/catch impede o travamento caso o ambiente restrinja a leitura da variável (ex: em previews).
   }
-  const GOOGLE_APPS_SCRIPT_URL = envUrl;
 
   const [articulador, setArticulador] = useState({ nome: '', email: '', telefone: '' });
   const [lideranca, setLideranca] = useState({ nome: '', email: '', telefone: '' });
@@ -39,16 +38,8 @@ export default function App() {
 
   const fetchStockData = async () => {
     try {
-      if(!GOOGLE_APPS_SCRIPT_URL) {
-        setTimeout(() => {
-          setEstoque([
-            { id: 1, nome: "Santinhos", total: 100000, disponivel: 56000 },
-            { id: 2, nome: "Panfletos - Santão", total: 18000, disponivel: 1570 },
-            { id: 3, nome: "Adesivo Praguinha", total: 10000, disponivel: 804 }
-          ]);
-          setLoading(false);
-        }, 800);
-        return;
+      if (!GOOGLE_APPS_SCRIPT_URL) {
+        throw new Error("Variável VITE_SHEETS_API_URL não encontrada no Vercel.");
       }
 
       const response = await fetch(GOOGLE_APPS_SCRIPT_URL);
@@ -56,9 +47,12 @@ export default function App() {
       
       if (data && data.length > 0) {
         setEstoque(data);
+      } else {
+        setEstoque([]);
       }
     } catch (error) {
       console.error("Erro ao carregar estoque:", error);
+      setMensagem({ tipo: 'erro', texto: `Falha ao buscar estoque da planilha: ${error.message}` });
     } finally {
       setLoading(false);
     }
