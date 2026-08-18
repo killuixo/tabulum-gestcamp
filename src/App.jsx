@@ -8,7 +8,6 @@ const IconPackage = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="
 const IconAlert = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>;
 const IconCheck = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
 const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
-
 const IconList = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>;
 const IconGrid = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
 const IconArrowLeft = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>;
@@ -17,22 +16,22 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('novo_pedido'); 
   const [viewConfig, setViewConfig] = useState({ mode: 'list', sort: 'data_desc', page: 1, detailFilter: null });
   
-  // Estados do Formulário de Novo Pedido
   const [articulador, setArticulador] = useState({ nome: '', email: '', telefone: '' });
   const [lideranca, setLideranca] = useState({ nome: '', email: '', telefone: '' });
   const [modoRecebimento, setModoRecebimento] = useState(''); 
   const [regiaoDespacho, setRegiaoDespacho] = useState('Interior de Santa Catarina');
   const [enderecoRecebimento, setEnderecoRecebimento] = useState('');
   const [horarioRetirada, setHorarioRetirada] = useState('');
+  
   const [estoque, setEstoque] = useState([]);
   const [pedidos, setPedidos] = useState({});
   const [loadingEstoque, setLoadingEstoque] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [mensagem, setMensagem] = useState(null); 
 
-  // Estados do Dashboard
   const [listaPedidos, setListaPedidos] = useState([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
+  const [mensagemLista, setMensagemLista] = useState(null);
   const [modalStatus, setModalStatus] = useState({ show: false, step: 1, order: null, newStatus: '' });
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -43,15 +42,20 @@ export default function App() {
 
   const fetchStockData = async () => {
     setLoadingEstoque(true);
+    setMensagem(null);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
-      if (!url) throw new Error('A URL do script não foi configurada.');
+      if (!url) throw new Error('A URL do script não foi configurada na variável VITE_SHEETS_API_URL.');
+      
       const response = await fetch(url);
-      const data = await response.json();
-      if (data.status === 'error') throw new Error(data.message);
-      setEstoque(data);
+      const result = await response.json();
+      
+      if (result.status === 'error') throw new Error(result.message);
+      if (result.type !== 'estoque') throw new Error('O Google Script retornou dados incorretos.');
+      
+      setEstoque(result.data || []);
     } catch (error) {
-      setMensagem({ tipo: 'erro', texto: error.message });
+      setMensagem({ tipo: 'erro', texto: `Erro no Estoque: ${error.message}` });
     } finally {
       setLoadingEstoque(false);
     }
@@ -59,23 +63,26 @@ export default function App() {
 
   const fetchPedidosData = async () => {
     setLoadingPedidos(true);
+    setMensagemLista(null);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
-      if (!url) throw new Error('A URL do script não foi configurada.');
+      if (!url) throw new Error('A URL do script não foi configurada na Vercel.');
       
-      // Checa a URL para evitar enviar duas interrogações (?) o que buga o Script
       const separator = url.includes('?') ? '&' : '?';
       const response = await fetch(`${url}${separator}action=pedidos`);
-      const data = await response.json();
+      const result = await response.json();
       
-      if (data.status === 'error') throw new Error(data.message);
+      if (result.status === 'error') throw new Error(result.message);
       
-      // BLINDAGEM: Se a planilha acidentalmente retornar o Estoque, o sistema não trava
-      const pedidosValidos = Array.isArray(data) ? data.filter(p => p && p.row && p.data !== undefined) : [];
-      setListaPedidos(pedidosValidos);
+      if (result.type !== 'pedidos') {
+        throw new Error('A Planilha ainda está sincronizando. Aguarde alguns instantes e tente recarregar.');
+      }
+      
+      setListaPedidos(result.data || []);
     } catch (error) {
       console.error("Erro ao buscar pedidos:", error);
-      setListaPedidos([]); // Salva-vidas para não dar tela em branco
+      setMensagemLista(error.message);
+      setListaPedidos([]); 
     } finally {
       setLoadingPedidos(false);
     }
@@ -128,7 +135,11 @@ export default function App() {
 
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
-      const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+      const response = await fetch(url, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload) 
+      });
       const result = await response.json();
       
       if (result.status === 'error') throw new Error(result.message);
@@ -139,14 +150,15 @@ export default function App() {
       setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada('');
       
     } catch (error) {
-      setMensagem({ tipo: 'erro', texto: `Falha: ${error.message}` });
+      setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
     } finally {
       setSubmitting(false);
     }
   };
 
   const triggerStatusModal = (pedido) => {
-    const newStatus = pedido.status === 'ENVIADO' ? 'A ENVIAR' : 'ENVIADO';
+    const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
+    const newStatus = isEnviado ? 'Pendente' : 'ENVIADO';
     setModalStatus({ show: true, step: 1, order: pedido, newStatus });
   };
 
@@ -154,14 +166,17 @@ export default function App() {
     setUpdatingStatus(true);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
+      const payload = { action: 'update_status', row: modalStatus.order.row, status: modalStatus.newStatus };
+      
       const response = await fetch(url, {
         method: 'POST',
-        body: JSON.stringify({ action: 'update_status', row: modalStatus.order.row, status: modalStatus.newStatus })
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
       });
+      
       const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       
-      // Atualiza estado local instantaneamente
       setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
       setModalStatus({ show: false, step: 1, order: null, newStatus: '' });
     } catch (error) {
@@ -179,7 +194,6 @@ export default function App() {
     }
 
     return filtered.sort((a, b) => {
-      // Uso de conversão segura para String para não crachar a tela
       if (viewConfig.sort === 'data_desc') return (b.row || 0) - (a.row || 0);
       if (viewConfig.sort === 'data_asc') return (a.row || 0) - (b.row || 0);
       if (viewConfig.sort === 'art_asc') return String(a.articuladorNome || '').localeCompare(String(b.articuladorNome || ''));
@@ -197,7 +211,7 @@ export default function App() {
   const totalPages = Math.ceil(sortedPedidos.length / CARDS_PER_PAGE);
   const displayedPedidos = viewConfig.mode === 'cards' 
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
-    : sortedPedidos; // Listas aparecem inteiras
+    : sortedPedidos; 
 
   const EntityLink = ({ type, label }) => (
     <span onClick={() => { setViewConfig({...viewConfig, detailFilter: { type, value: label }, page: 1}); window.scrollTo(0,0); }} 
@@ -207,11 +221,11 @@ export default function App() {
   );
 
   const StatusBadge = ({ pedido }) => {
-    const isEnviado = pedido.status === 'ENVIADO';
+    const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
     return (
       <button onClick={() => triggerStatusModal(pedido)}
               className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
-        {pedido.status}
+        {pedido.status || 'Pendente'}
       </button>
     );
   };
@@ -232,10 +246,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* TELA DE NOVO PEDIDO (Formulário Original) */}
+      {/* TELA DE NOVO PEDIDO */}
       {activeTab === 'novo_pedido' && (
         <form onSubmit={handleSubmit} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Sessões mantidas iguais ao original */}
           <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
             <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
               <IconUser />
@@ -331,23 +344,34 @@ export default function App() {
               <h2 className="text-2xl font-bold text-slate-900">Seleção de Materiais <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
             {loadingEstoque ? (
-              <p className="text-center font-bold text-slate-500 py-10">Buscando estoque seguro...</p>
+              <div className="text-center py-10 font-bold text-slate-500 flex flex-col items-center">
+                <div className="animate-spin text-[#DC143C] mb-4"><IconPackage /></div>
+                Buscando estoque da planilha...
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {estoque.map((item) => {
                   const porcentagem = item.total > 0 ? ((item.disponivel / item.total) * 100).toFixed(1) : 0;
                   const quantidadeEscolhida = pedidos[item.id] || 0;
+                  
+                  let colorClass = "bg-[#20B2AA]";
+                  if (porcentagem < 30) colorClass = "bg-[#DC143C]";
+                  else if (porcentagem < 60) colorClass = "bg-[#E5B80B]";
+
                   return (
-                    <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between">
+                    <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors">
                       <div>
                         <h3 className="font-bold text-slate-800 text-lg mb-1 leading-tight">{item.nome}</h3>
-                        <div className="mt-3 mb-4 flex justify-between text-xs font-bold text-slate-500">
+                        <div className="mt-3 mb-1 flex justify-between text-xs font-bold text-slate-500">
                           <span>Restam: {item.disponivel} un.</span>
                           <span>{porcentagem}% em estoque</span>
                         </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2 mb-4 overflow-hidden">
+                          <div className={`${colorClass} h-2 rounded-full`} style={{ width: `${porcentagem}%` }}></div>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-200">
-                        <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">QTD:</span>
+                        <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Quantidade:</span>
                         <div className="flex items-center space-x-2">
                           <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">-</button>
                           <input type="number" min="0" max={item.disponivel} value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-20 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none"/>
@@ -371,7 +395,7 @@ export default function App() {
               )}
             </div>
             <button type="submit" disabled={submitting} className="w-full md:w-auto flex justify-center items-center space-x-2 bg-[#DC143C] text-white font-black uppercase py-4 px-10 rounded-xl transition-all hover:scale-105 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] disabled:opacity-70 border-2 border-white">
-              {submitting ? <span>Enviando...</span> : <span>Confirmar Pedido</span>}
+              {submitting ? <span>Salvando...</span> : <span>Confirmar Pedido</span>}
             </button>
           </div>
         </form>
@@ -381,11 +405,10 @@ export default function App() {
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6">
           
-          {/* Ficha Completa Header (Ativado por filtro) */}
           {viewConfig.detailFilter && (
             <div className="bg-[#20B2AA] text-white rounded-2xl p-6 mb-6 flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
               <div>
-                <span className="text-sm font-bold uppercase tracking-wider text-slate-800">Ficha Completa • {viewConfig.detailFilter.type}</span>
+                <span className="text-sm font-bold uppercase tracking-wider text-slate-800">Ficha Completa • {viewConfig.detailFilter.type === 'articuladorNome' ? 'Articulador' : viewConfig.detailFilter.type === 'liderancaNome' ? 'Liderança' : 'Destino'}</span>
                 <h2 className="text-3xl font-black">{viewConfig.detailFilter.value}</h2>
                 <p className="mt-2 font-bold text-slate-800 bg-white/30 px-3 py-1 rounded-full inline-block">{sortedPedidos.length} Pedidos Encontrados</p>
               </div>
@@ -395,7 +418,13 @@ export default function App() {
             </div>
           )}
 
-          {/* Controles de Filtro e Visualização */}
+          {mensagemLista && (
+            <div className="bg-[#DC143C]/10 border-2 border-[#DC143C] p-4 rounded-xl text-[#DC143C] font-bold text-center mb-6">
+              <span className="block mb-1">Aviso do Sistema:</span>
+              {mensagemLista}
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border-2 border-slate-200">
             <div className="flex items-center w-full md:w-auto space-x-2">
               <span className="font-bold text-slate-500 mr-2">Ordenar por:</span>
@@ -417,43 +446,46 @@ export default function App() {
             </div>
           </div>
 
-          {/* Loader */}
-          {loadingPedidos && <div className="text-center py-10 font-bold text-slate-500">Buscando Pedidos da Planilha...</div>}
+          {loadingPedidos && (
+            <div className="text-center py-10 font-bold text-slate-500 flex flex-col items-center">
+              <div className="animate-spin text-[#20B2AA] mb-4"><IconPackage /></div>
+              Buscando Pedidos da Planilha...
+            </div>
+          )}
 
-          {/* View em Cards */}
+          {}
           {!loadingPedidos && viewConfig.mode === 'cards' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {displayedPedidos.map(pedido => (
-                  <div key={pedido.row} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] transition-all">
-                    <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
-                      <div>
-                        <span className="text-xs font-black text-slate-400">PEDIDO #{pedido.row}</span>
-                        {/* Blindagem na formatação da Data */}
-                        <div className="text-sm font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</div>
+                {displayedPedidos.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed">
+                    Nenhum pedido encontrado para esta visualização.
+                  </div>
+                ) : (
+                  displayedPedidos.map(pedido => (
+                    <div key={pedido.row} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] transition-all">
+                      <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
+                        <StatusBadge pedido={pedido} />
                       </div>
-                      <StatusBadge pedido={pedido} />
-                    </div>
-                    
-                    <div className="flex-1 space-y-3 text-sm">
-                      <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
-                      <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
-                      <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
                       
-                      {/* Ajuste visual para separar Nome do Material e Quantidade, conforme sua nova coluna da planilha */}
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4">
-                        <span className="text-slate-500 text-xs font-bold uppercase mb-2 block">Resumo do Material</span>
-                        <div className="flex justify-between text-slate-700 text-xs">
-                          <p className="whitespace-pre-line leading-tight pr-2">{pedido.materiais}</p>
-                          <p className="whitespace-pre-line leading-tight font-black text-right">{pedido.quantidades}</p>
+                      <div className="flex-1 space-y-3 text-sm">
+                        <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
+                        <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
+                        <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
+                        
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4">
+                          <span className="text-slate-500 text-xs font-bold uppercase mb-2 block">Resumo do Material</span>
+                          <div className="flex justify-between text-slate-700 text-xs">
+                            <p className="whitespace-pre-line leading-tight pr-2">{pedido.materiais}</p>
+                            <p className="whitespace-pre-line leading-tight font-black text-right">{pedido.quantidades}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
               
-              {/* Paginação Cards */}
               {totalPages > 1 && (
                 <div className="flex justify-center space-x-2 pt-6">
                   {Array.from({length: totalPages}, (_, i) => (
@@ -466,7 +498,6 @@ export default function App() {
             </>
           )}
 
-          {/* View em Lista */}
           {!loadingPedidos && viewConfig.mode === 'list' && (
              <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)]">
                <table className="w-full text-left text-sm border-collapse min-w-[800px]">
@@ -488,7 +519,6 @@ export default function App() {
                        <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></td>
                        <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></td>
                        <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
-                         {/* Blindagem de leitura de Materiais na Tabela */}
                          {String(pedido.materiais || '').split('\n').join(' | ')}
                        </td>
                        <td className="p-4 text-center"><StatusBadge pedido={pedido} /></td>
