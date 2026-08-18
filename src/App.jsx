@@ -61,12 +61,21 @@ export default function App() {
     setLoadingPedidos(true);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
-      const response = await fetch(`${url}?action=pedidos`);
+      if (!url) throw new Error('A URL do script não foi configurada.');
+      
+      // Checa a URL para evitar enviar duas interrogações (?) o que buga o Script
+      const separator = url.includes('?') ? '&' : '?';
+      const response = await fetch(`${url}${separator}action=pedidos`);
       const data = await response.json();
+      
       if (data.status === 'error') throw new Error(data.message);
-      setListaPedidos(data);
+      
+      // BLINDAGEM: Se a planilha acidentalmente retornar o Estoque, o sistema não trava
+      const pedidosValidos = Array.isArray(data) ? data.filter(p => p && p.row && p.data !== undefined) : [];
+      setListaPedidos(pedidosValidos);
     } catch (error) {
       console.error("Erro ao buscar pedidos:", error);
+      setListaPedidos([]); // Salva-vidas para não dar tela em branco
     } finally {
       setLoadingPedidos(false);
     }
@@ -170,15 +179,15 @@ export default function App() {
     }
 
     return filtered.sort((a, b) => {
-      // Ordenação rudimentar baseada em formato de data DD/MM/YYYY ou alfabética
-      if (viewConfig.sort === 'data_desc') return b.row - a.row; // ID Linha reflete data descendente
-      if (viewConfig.sort === 'data_asc') return a.row - b.row;
-      if (viewConfig.sort === 'art_asc') return a.articuladorNome.localeCompare(b.articuladorNome);
-      if (viewConfig.sort === 'art_desc') return b.articuladorNome.localeCompare(a.articuladorNome);
-      if (viewConfig.sort === 'lid_asc') return a.liderancaNome.localeCompare(b.liderancaNome);
-      if (viewConfig.sort === 'lid_desc') return b.liderancaNome.localeCompare(a.liderancaNome);
-      if (viewConfig.sort === 'loc_asc') return a.enderecoRecebimento.localeCompare(b.enderecoRecebimento);
-      if (viewConfig.sort === 'loc_desc') return b.enderecoRecebimento.localeCompare(a.enderecoRecebimento);
+      // Uso de conversão segura para String para não crachar a tela
+      if (viewConfig.sort === 'data_desc') return (b.row || 0) - (a.row || 0);
+      if (viewConfig.sort === 'data_asc') return (a.row || 0) - (b.row || 0);
+      if (viewConfig.sort === 'art_asc') return String(a.articuladorNome || '').localeCompare(String(b.articuladorNome || ''));
+      if (viewConfig.sort === 'art_desc') return String(b.articuladorNome || '').localeCompare(String(a.articuladorNome || ''));
+      if (viewConfig.sort === 'lid_asc') return String(a.liderancaNome || '').localeCompare(String(b.liderancaNome || ''));
+      if (viewConfig.sort === 'lid_desc') return String(b.liderancaNome || '').localeCompare(String(a.liderancaNome || ''));
+      if (viewConfig.sort === 'loc_asc') return String(a.enderecoRecebimento || '').localeCompare(String(b.enderecoRecebimento || ''));
+      if (viewConfig.sort === 'loc_desc') return String(b.enderecoRecebimento || '').localeCompare(String(a.enderecoRecebimento || ''));
       return 0;
     });
   };
@@ -420,19 +429,24 @@ export default function App() {
                     <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
                       <div>
                         <span className="text-xs font-black text-slate-400">PEDIDO #{pedido.row}</span>
-                        <div className="text-sm font-bold text-slate-700">{pedido.data.split(' ')[0] || pedido.data}</div>
+                        {/* Blindagem na formatação da Data */}
+                        <div className="text-sm font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</div>
                       </div>
                       <StatusBadge pedido={pedido} />
                     </div>
                     
                     <div className="flex-1 space-y-3 text-sm">
-                      <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome} /></div>
-                      <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome} /></div>
-                      <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento} /></div>
+                      <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
+                      <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
+                      <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
                       
+                      {/* Ajuste visual para separar Nome do Material e Quantidade, conforme sua nova coluna da planilha */}
                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4">
                         <span className="text-slate-500 text-xs font-bold uppercase mb-2 block">Resumo do Material</span>
-                        <p className="whitespace-pre-line leading-tight text-slate-700">{pedido.materiais}</p>
+                        <div className="flex justify-between text-slate-700 text-xs">
+                          <p className="whitespace-pre-line leading-tight pr-2">{pedido.materiais}</p>
+                          <p className="whitespace-pre-line leading-tight font-black text-right">{pedido.quantidades}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -462,18 +476,21 @@ export default function App() {
                      <th className="p-4 font-black">Liderança</th>
                      <th className="p-4 font-black">Articulador</th>
                      <th className="p-4 font-black">Local</th>
-                     <th className="p-4 font-black">Materiais (Resumo)</th>
+                     <th className="p-4 font-black">Materiais</th>
                      <th className="p-4 font-black text-center">Status</th>
                    </tr>
                  </thead>
                  <tbody>
                    {displayedPedidos.map(pedido => (
                      <tr key={pedido.row} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                       <td className="p-4 font-bold text-slate-700">{pedido.data.split(' ')[0] || pedido.data}</td>
-                       <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome} /></td>
-                       <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome} /></td>
-                       <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento} /></td>
-                       <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">{pedido.materiais.split('\n').join(' | ')}</td>
+                       <td className="p-4 font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</td>
+                       <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></td>
+                       <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></td>
+                       <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></td>
+                       <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
+                         {/* Blindagem de leitura de Materiais na Tabela */}
+                         {String(pedido.materiais || '').split('\n').join(' | ')}
+                       </td>
                        <td className="p-4 text-center"><StatusBadge pedido={pedido} /></td>
                      </tr>
                    ))}
