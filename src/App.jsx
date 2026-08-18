@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// Ícones SVG diretos
 const IconUser = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const IconMail = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>;
 const IconPhone = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>;
@@ -11,12 +10,7 @@ const IconCheck = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="no
 const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
 
 export default function App() {
-  let GOOGLE_APPS_SCRIPT_URL = "";
-  try {
-    GOOGLE_APPS_SCRIPT_URL = import.meta.env.VITE_SHEETS_API_URL;
-  } catch (e) {
-    // Bloco try/catch impede o travamento caso o ambiente restrinja a leitura da variável (ex: em previews).
-  }
+  const GOOGLE_APPS_SCRIPT_URL = import.meta.env && import.meta.env.VITE_SHEETS_API_URL ? import.meta.env.VITE_SHEETS_API_URL : '';
 
   const [articulador, setArticulador] = useState({ nome: '', email: '', telefone: '' });
   const [lideranca, setLideranca] = useState({ nome: '', email: '', telefone: '' });
@@ -39,20 +33,23 @@ export default function App() {
   const fetchStockData = async () => {
     try {
       if (!GOOGLE_APPS_SCRIPT_URL) {
-        throw new Error("Variável VITE_SHEETS_API_URL não encontrada no Vercel.");
+        throw new Error("VITE_SHEETS_API_URL não configurada no ambiente.");
       }
 
       const response = await fetch(GOOGLE_APPS_SCRIPT_URL);
+      if (!response.ok) {
+        throw new Error("Falha na comunicação com a planilha.");
+      }
+
       const data = await response.json();
-      
-      if (data && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         setEstoque(data);
       } else {
-        setEstoque([]);
+         throw new Error("Nenhum estoque encontrado na planilha.");
       }
     } catch (error) {
       console.error("Erro ao carregar estoque:", error);
-      setMensagem({ tipo: 'erro', texto: `Falha ao buscar estoque da planilha: ${error.message}` });
+      setMensagem({ tipo: 'erro', texto: `Falha ao carregar estoque: ${error.message}` });
     } finally {
       setLoading(false);
     }
@@ -71,14 +68,19 @@ export default function App() {
     setSubmitting(true);
     setMensagem(null);
 
+    if (!articulador.nome.trim() || !lideranca.nome.trim()) {
+      setMensagem({ tipo: 'erro', texto: 'Os nomes do Articulador e da Liderança são obrigatórios.' });
+      setSubmitting(false); return;
+    }
+
     if (!modoRecebimento) {
-      setMensagem({ tipo: 'erro', texto: 'Selecione um Modo de Recebimento (Despacho ou Retirada).' });
+      setMensagem({ tipo: 'erro', texto: 'Selecione um Modo de Recebimento.' });
       setSubmitting(false); return;
     }
 
     if (modoRecebimento === 'Despacho') {
       if (!enderecoRecebimento.trim()) {
-        setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório para Despacho.' });
+        setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório.' });
         setSubmitting(false); return;
       }
       if (regiaoDespacho === 'Florianópolis' && enderecoRecebimento.trim().length < 8) {
@@ -97,7 +99,7 @@ export default function App() {
       .map(item => ({ nome: item.nome, quantidade: pedidos[item.id] }));
 
     if (materiaisSolicitados.length === 0) {
-      setMensagem({ tipo: 'erro', texto: 'Selecione a quantidade de pelo menos um material antes de enviar.' });
+      setMensagem({ tipo: 'erro', texto: 'Selecione a quantidade de pelo menos um material.' });
       setSubmitting(false); return;
     }
 
@@ -110,9 +112,8 @@ export default function App() {
     };
 
     try {
-      if(!GOOGLE_APPS_SCRIPT_URL) throw new Error("VITE_SHEETS_API_URL ausente");
+      if(!GOOGLE_APPS_SCRIPT_URL) throw new Error("VITE_SHEETS_API_URL ausente.");
 
-      // Usando no-cors para evitar bloqueios de navegadores ao enviar dados
       await fetch(GOOGLE_APPS_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -120,14 +121,14 @@ export default function App() {
         body: JSON.stringify(payload)
       });
       
-      setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso!' });
+      setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
       setArticulador({ nome: '', email: '', telefone: '' });
       setLideranca({ nome: '', email: '', telefone: '' });
       setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada('');
       
     } catch (error) {
       console.error(error);
-      setMensagem({ tipo: 'erro', texto: `Erro de conexão. A URL está configurada? (${GOOGLE_APPS_SCRIPT_URL ? 'Sim' : 'Não'})` });
+      setMensagem({ tipo: 'erro', texto: `Erro ao enviar dados: ${error.message}` });
     } finally {
       setSubmitting(false);
     }
@@ -137,7 +138,8 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#F9F6F0] flex flex-col items-center justify-center space-y-4">
         <div className="animate-spin text-[#20B2AA]"><IconPackage /></div>
-        <p className="text-slate-600 font-bold">Sincronizando com o estoque...</p>
+        <p className="text-slate-600 font-bold">Buscando estoque da planilha...</p>
+        {mensagem && <p className="text-[#DC143C] font-bold mt-4">{mensagem.texto}</p>}
       </div>
     );
   }
@@ -156,14 +158,13 @@ export default function App() {
 
       <form onSubmit={handleSubmit} className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
         
-        {}
+        {/* Bloco do Articulador */}
         <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
           <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
             <IconUser />
             <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
           </div>
           
-          {/* Inputs embutidos diretos para evitar perda de foco */}
           <div className="mb-4">
             <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
             <div className="relative">
@@ -189,7 +190,7 @@ export default function App() {
           </div>
         </div>
 
-        {}
+        {/* Bloco da Liderança */}
         <div className="md:col-span-7 bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
            <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
             <IconUsers />
@@ -224,7 +225,7 @@ export default function App() {
           </div>
         </div>
 
-        {}
+        {/* Bloco de Modo de Recebimento */}
         <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
            <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
             <IconTruck />
@@ -239,7 +240,7 @@ export default function App() {
               </div>
               
               {modoRecebimento === 'Despacho' && (
-                <div className="mt-4 space-y-4 pl-8">
+                <div className="mt-4 space-y-4 pl-8" onClick={e => e.stopPropagation()}>
                   <div>
                     <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
                     <select className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white" value={regiaoDespacho} onChange={(e) => setRegiaoDespacho(e.target.value)}>
@@ -263,7 +264,7 @@ export default function App() {
               </div>
               
               {modoRecebimento === 'Retirada no comitê' && (
-                <div className="mt-4 pl-8">
+                <div className="mt-4 pl-8" onClick={e => e.stopPropagation()}>
                   <div className="p-3 bg-white border-2 border-slate-300 rounded-lg mb-4 text-sm font-bold text-slate-700">Rua Tiradentes, 55 - Centro, Florianópolis - SC.</div>
                   <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
                   <div className="space-y-2">
@@ -280,7 +281,7 @@ export default function App() {
           </div>
         </div>
 
-        {}
+        {/* Bloco de Materiais */}
         <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
           <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
             <div className="text-[#DC143C]"><IconPackage /></div>
@@ -324,7 +325,7 @@ export default function App() {
           </div>
         </div>
 
-        {}
+        {/* Rodapé e Mensagens */}
         <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4">
           <div className="flex-1 w-full mb-4 md:mb-0 pr-0 md:pr-4">
             {mensagem && (
