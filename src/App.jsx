@@ -33,7 +33,7 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       
       if (!url) {
-        setMensagem({ tipo: 'erro', texto: 'A variável de ambiente VITE_SHEETS_API_URL não foi configurada no Vercel.' });
+        setMensagem({ tipo: 'erro', texto: 'A variável de ambiente VITE_SHEETS_API_URL não foi configurada.' });
         setLoading(false);
         return;
       }
@@ -48,10 +48,10 @@ export default function App() {
       if (Array.isArray(data) && data.length > 0) {
         setEstoque(data);
       } else {
-        setMensagem({ tipo: 'erro', texto: 'Nenhum material disponível para solicitação no momento.' });
+        setMensagem({ tipo: 'erro', texto: 'Nenhum material disponível ou estoque zerado.' });
       }
     } catch (error) {
-      setMensagem({ tipo: 'erro', texto: `Falha ao carregar estoque: Verifique a URL do script e as permissões (CORS). Detalhe: ${error.message}` });
+      setMensagem({ tipo: 'erro', texto: `Falha de conexão ou erro no script: ${error.message}` });
     } finally {
       setLoading(false);
     }
@@ -70,6 +70,7 @@ export default function App() {
     setSubmitting(true);
     setMensagem(null);
 
+    // Validações obrigatórias
     if (!articulador.nome.trim() || !lideranca.nome.trim()) {
       setMensagem({ tipo: 'erro', texto: 'Os nomes do Articulador e da Liderança são obrigatórios.' });
       setSubmitting(false); return;
@@ -110,7 +111,7 @@ export default function App() {
       lideranca, 
       modoRecebimento,
       regiaoDespacho: modoRecebimento === 'Despacho' ? regiaoDespacho : '',
-      enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Retirada Comitê',
+      enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Retirada no Comitê',
       horarioRetirada: modoRecebimento === 'Retirada no comitê' ? horarioRetirada : '',
       materiais: materiaisSolicitados
     };
@@ -118,12 +119,19 @@ export default function App() {
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       
-      await fetch(url, {
+      // Removido o 'mode: no-cors' para que possamos ler a resposta de erro real do Google Script
+      const response = await fetch(url, {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
+      
+      const result = await response.json();
+      
+      // Se a planilha nos devolver um erro (ex: aba não encontrada), nós o pegamos aqui.
+      if (result.status === 'error') {
+        throw new Error(result.message);
+      }
       
       setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
       setArticulador({ nome: '', email: '', telefone: '' });
@@ -131,7 +139,7 @@ export default function App() {
       setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada('');
       
     } catch (error) {
-      setMensagem({ tipo: 'erro', texto: `Erro ao enviar dados. Verifique sua conexão.` });
+      setMensagem({ tipo: 'erro', texto: `Falha ao gravar na planilha: ${error.message}` });
     } finally {
       setSubmitting(false);
     }
@@ -146,7 +154,6 @@ export default function App() {
     );
   }
 
-  // Previne tela em branco caso ocorra falha ao baixar itens
   if (estoque.length === 0 && mensagem?.tipo === 'erro') {
     return (
       <div className="min-h-screen bg-[#F9F6F0] flex flex-col items-center justify-center p-6 text-center">
@@ -159,7 +166,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800">
-      
       <div className="max-w-5xl mx-auto mb-8">
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 inline-block pb-1 pr-8">
           Pedido de Materiais
@@ -170,8 +176,6 @@ export default function App() {
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
-        
-        {/* Bloco do Articulador */}
         <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
           <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
             <IconUser />
@@ -203,14 +207,12 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bloco da Liderança */}
         <div className="md:col-span-7 bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
            <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
             <IconUsers />
             <h2 className="text-2xl font-bold">Liderança de Destino</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
-            
             <div className="md:col-span-2 mb-4">
               <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
               <div className="relative">
@@ -234,7 +236,6 @@ export default function App() {
                 <input type="tel" value={lideranca.telefone} onChange={e => setLideranca({...lideranca, telefone: e.target.value})} placeholder="Opcional" className="w-full pl-10 pr-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900 transition-colors" />
               </div>
             </div>
-
           </div>
         </div>
 
