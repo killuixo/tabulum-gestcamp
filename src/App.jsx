@@ -22,6 +22,7 @@ export default function App() {
   const [regiaoDespacho, setRegiaoDespacho] = useState('Interior de Santa Catarina');
   const [enderecoRecebimento, setEnderecoRecebimento] = useState('');
   const [horarioRetirada, setHorarioRetirada] = useState('');
+  const [dataAgendada, setDataAgendada] = useState(''); // Nova variável de data
   
   const [estoque, setEstoque] = useState([]);
   const [pedidos, setPedidos] = useState({});
@@ -96,6 +97,15 @@ export default function App() {
     setPedidos(prev => ({ ...prev, [id]: qtd }));
   };
 
+  const formatarDataBR = (dataString) => {
+    if (!dataString) return '';
+    if (dataString.includes('-')) {
+      const [y, m, d] = dataString.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    return dataString;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -109,13 +119,25 @@ export default function App() {
       setMensagem({ tipo: 'erro', texto: 'Selecione um Modo de Recebimento.' });
       setSubmitting(false); return;
     }
-    if (modoRecebimento === 'Despacho' && !enderecoRecebimento.trim()) {
-      setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório.' });
-      setSubmitting(false); return;
+    if (modoRecebimento === 'Despacho') {
+      if (!dataAgendada) {
+        setMensagem({ tipo: 'erro', texto: 'O prazo de entrega é obrigatório para o Despacho.' });
+        setSubmitting(false); return;
+      }
+      if (!enderecoRecebimento.trim()) {
+        setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório.' });
+        setSubmitting(false); return;
+      }
     }
-    if (modoRecebimento === 'Retirada no comitê' && !horarioRetirada) {
-      setMensagem({ tipo: 'erro', texto: 'Selecione o horário de retirada.' });
-      setSubmitting(false); return;
+    if (modoRecebimento === 'Retirada no comitê') {
+      if (!dataAgendada) {
+        setMensagem({ tipo: 'erro', texto: 'A data da retirada é obrigatória.' });
+        setSubmitting(false); return;
+      }
+      if (!horarioRetirada) {
+        setMensagem({ tipo: 'erro', texto: 'Selecione o horário de retirada.' });
+        setSubmitting(false); return;
+      }
     }
 
     const materiaisSolicitados = estoque.filter(i => pedidos[i.id] > 0).map(i => ({ nome: i.nome, quantidade: pedidos[i.id] }));
@@ -130,6 +152,7 @@ export default function App() {
       regiaoDespacho: modoRecebimento === 'Despacho' ? regiaoDespacho : '',
       enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Retirada no Comitê',
       horarioRetirada: modoRecebimento === 'Retirada no comitê' ? horarioRetirada : '',
+      dataAgendada: dataAgendada, // Enviando a nova data
       materiais: materiaisSolicitados
     };
 
@@ -147,7 +170,7 @@ export default function App() {
       setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
       setArticulador({ nome: '', email: '', telefone: '' });
       setLideranca({ nome: '', email: '', telefone: '' });
-      setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada('');
+      setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada(''); setDataAgendada('');
       
     } catch (error) {
       setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
@@ -295,19 +318,25 @@ export default function App() {
               <h2 className="text-2xl font-bold text-slate-900">Modo de Recebimento <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setModoRecebimento('Despacho')}>
+              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => {setModoRecebimento('Despacho'); setDataAgendada('');}}>
                 <div className="flex items-center mb-3">
                   <input type="radio" checked={modoRecebimento === 'Despacho'} readOnly className="w-5 h-5 mr-3 accent-[#20B2AA]" />
                   <h3 className="font-bold text-lg">Despacho</h3>
                 </div>
                 {modoRecebimento === 'Despacho' && (
                   <div className="mt-4 space-y-4 pl-8" onClick={e => e.stopPropagation()}>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
-                      <select className="w-full p-2 border-2 border-slate-400 rounded-lg" value={regiaoDespacho} onChange={(e) => setRegiaoDespacho(e.target.value)}>
-                        <option value="Interior de Santa Catarina">Interior de Santa Catarina</option>
-                        <option value="Florianópolis">Florianópolis</option>
-                      </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
+                        <select className="w-full p-2 border-2 border-slate-400 rounded-lg" value={regiaoDespacho} onChange={(e) => setRegiaoDespacho(e.target.value)}>
+                          <option value="Interior de Santa Catarina">Interior de Santa Catarina</option>
+                          <option value="Florianópolis">Florianópolis</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Prazo de Entrega <span className="text-[#DC143C]">*</span></label>
+                        <input type="date" required value={dataAgendada} onChange={e => setDataAgendada(e.target.value)} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-800 mb-1">Município / Bairro <span className="text-[#DC143C]">*</span></label>
@@ -316,21 +345,27 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Retirada no comitê' ? 'border-[#DC143C] bg-[#DC143C]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setModoRecebimento('Retirada no comitê')}>
+              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Retirada no comitê' ? 'border-[#DC143C] bg-[#DC143C]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => {setModoRecebimento('Retirada no comitê'); setDataAgendada('');}}>
                 <div className="flex items-center mb-3">
                   <input type="radio" checked={modoRecebimento === 'Retirada no comitê'} readOnly className="w-5 h-5 mr-3 accent-[#DC143C]" />
                   <h3 className="font-bold text-lg">Retirada no comitê</h3>
                 </div>
                 {modoRecebimento === 'Retirada no comitê' && (
-                  <div className="mt-4 pl-8" onClick={e => e.stopPropagation()}>
-                    <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
-                    <div className="space-y-2">
-                      {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
-                        <label key={hora} className="flex items-center space-x-2 cursor-pointer">
-                          <input type="radio" value={hora} checked={horarioRetirada === hora} onChange={(e) => setHorarioRetirada(e.target.value)} className="w-4 h-4 accent-[#DC143C]"/>
-                          <span>{hora}</span>
-                        </label>
-                      ))}
+                  <div className="mt-4 pl-8 space-y-4" onClick={e => e.stopPropagation()}>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-800 mb-2">Data da Retirada <span className="text-[#DC143C]">*</span></label>
+                      <input type="date" required value={dataAgendada} onChange={e => setDataAgendada(e.target.value)} className="w-full max-w-[200px] p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
+                      <div className="space-y-2">
+                        {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
+                          <label key={hora} className="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" value={hora} checked={horarioRetirada === hora} onChange={(e) => setHorarioRetirada(e.target.value)} className="w-4 h-4 accent-[#DC143C]"/>
+                            <span>{hora}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -453,7 +488,6 @@ export default function App() {
             </div>
           )}
 
-          {}
           {!loadingPedidos && viewConfig.mode === 'cards' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -472,6 +506,7 @@ export default function App() {
                         <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
                         <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
                         <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
+                        <div><span className="text-slate-500 text-xs font-bold uppercase">Agendamento</span><br/><span className="font-bold text-slate-800">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `às ${pedido.horarioRetirada}` : ''}</span></div>
                         
                         <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4">
                           <span className="text-slate-500 text-xs font-bold uppercase mb-2 block">Resumo do Material</span>
@@ -500,13 +535,14 @@ export default function App() {
 
           {!loadingPedidos && viewConfig.mode === 'list' && (
              <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)]">
-               <table className="w-full text-left text-sm border-collapse min-w-[800px]">
+               <table className="w-full text-left text-sm border-collapse min-w-[900px]">
                  <thead>
                    <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
                      <th className="p-4 font-black">Data</th>
                      <th className="p-4 font-black">Liderança</th>
                      <th className="p-4 font-black">Articulador</th>
                      <th className="p-4 font-black">Local</th>
+                     <th className="p-4 font-black">Agendamento</th>
                      <th className="p-4 font-black">Materiais</th>
                      <th className="p-4 font-black text-center">Status</th>
                    </tr>
@@ -518,6 +554,7 @@ export default function App() {
                        <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></td>
                        <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></td>
                        <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></td>
+                       <td className="p-4 text-xs font-bold text-slate-700">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `(${pedido.horarioRetirada})` : ''}</td>
                        <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
                          {String(pedido.materiais || '').split('\n').join(' | ')}
                        </td>
