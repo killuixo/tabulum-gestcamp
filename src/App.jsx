@@ -33,7 +33,7 @@ export default function App() {
   
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
-  const [enviados, setEnviados] = useState({}); // Novo estado p/ quantidades enviadas na edição
+  const [enviados, setEnviados] = useState({});
   
   const [estoque, setEstoque] = useState([]);
   const [levasHeaders, setLevasHeaders] = useState([]);
@@ -129,7 +129,7 @@ export default function App() {
       lideranca: formData.lideranca, 
       modoRecebimento: formData.modoRecebimento,
       regiaoDespacho: formData.modoRecebimento === 'Despacho' ? formData.regiaoDespacho : '',
-      enderecoRecebimento: formData.modoRecebimento === 'Despacho' ? formData.enderecoRecebimento : 'Retirada no Comitê',
+      enderecoRecebimento: formData.enderecoRecebimento, // Salva o endereço independente de ser despacho ou retirada
       horarioRetirada: formData.modoRecebimento === 'Retirada no comitê' ? formData.horarioRetirada : '',
       dataAgendada: formData.dataAgendada,
       status: formData.status,
@@ -172,6 +172,7 @@ export default function App() {
     if (formData.modoRecebimento === 'Retirada no comitê') {
       if (!formData.dataAgendada) return setMensagem({ tipo: 'erro', texto: 'A data da retirada é obrigatória.' });
       if (!formData.horarioRetirada) return setMensagem({ tipo: 'erro', texto: 'Selecione o horário.' });
+      // Endereço é opcional na retirada, passa direto.
     }
 
     if (estoque.filter(i => pedidos[i.id] > 0).length === 0) return setMensagem({ tipo: 'erro', texto: 'Selecione ao menos um material.' });
@@ -180,7 +181,8 @@ export default function App() {
       const summary = [
         { label: 'Articulador', val: formData.articulador.nome },
         { label: 'Liderança', val: formData.lideranca.nome },
-        { label: 'Destino', val: formData.modoRecebimento === 'Despacho' ? formData.enderecoRecebimento : 'Retirada no Comitê' },
+        { label: 'Modo', val: formData.modoRecebimento },
+        { label: 'Destino', val: formData.enderecoRecebimento || 'Não Informado' },
         { label: 'Status', val: formData.status }
       ];
       setModalEditConfirm({ show: true, step: 1, changesSummary: summary });
@@ -234,7 +236,7 @@ export default function App() {
       if (result.status === 'error') throw new Error(result.message);
       
       setModalLeva({ show: false, step: 1, nome: '', itens: {} });
-      fetchStockData(); // Recarrega o estoque atualizado
+      fetchStockData();
     } catch (error) {
       alert("Erro ao criar leva: " + error.message);
     } finally {
@@ -297,10 +299,14 @@ export default function App() {
 
   const getFilteredAndSortedPedidos = () => {
     let filtered = [...listaPedidos];
-    if (viewConfig.detailFilter) filtered = filtered.filter(p => p[viewConfig.detailFilter.type] === viewConfig.detailFilter.value);
-    if (filters.articulador.length > 0) filtered = filtered.filter(p => filters.articulador.includes(p.articuladorNome));
-    if (filters.lideranca.length > 0) filtered = filtered.filter(p => filters.lideranca.includes(p.liderancaNome));
-    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes(p.enderecoRecebimento || p.modoRecebimento));
+    
+    // Assegura que o trim não jogue fora as strings ao filtrar
+    if (viewConfig.detailFilter) {
+      filtered = filtered.filter(p => (p[viewConfig.detailFilter.type] || '').trim() === viewConfig.detailFilter.value);
+    }
+    if (filters.articulador.length > 0) filtered = filtered.filter(p => filters.articulador.includes((p.articuladorNome || '').trim()));
+    if (filters.lideranca.length > 0) filtered = filtered.filter(p => filters.lideranca.includes((p.liderancaNome || '').trim()));
+    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes((p.enderecoRecebimento || '').trim()));
 
     return filtered.sort((a, b) => {
       const isAsc = viewConfig.sort.endsWith('asc') ? 1 : -1;
@@ -322,9 +328,10 @@ export default function App() {
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
     : sortedPedidos; 
 
-  const uniqueArticuladores = [...new Set(listaPedidos.map(p => p.articuladorNome).filter(Boolean))].sort();
-  const uniqueLiderancas = [...new Set(listaPedidos.map(p => p.liderancaNome).filter(Boolean))].sort();
-  const uniqueLocais = [...new Set(listaPedidos.map(p => p.enderecoRecebimento || p.modoRecebimento).filter(Boolean).filter(l => l !== 'Retirada no Comitê'))].sort();
+  // Listas de Datalists sem as duplicações de espaços
+  const uniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
+  const uniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
+  const uniqueLocais = [...new Set(listaPedidos.map(p => (p.enderecoRecebimento || '').trim()).filter(Boolean))].sort();
 
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
@@ -354,12 +361,16 @@ export default function App() {
   const totalEnviadoEdit = estoque.reduce((acc, item) => acc + (enviados[item.id] || 0), 0);
   const percentualEnviadoEdit = totalSolicitadoEdit > 0 ? Math.round((totalEnviadoEdit / totalSolicitadoEdit) * 100) : 0;
 
-  const EntityLink = ({ type, label }) => (
-    <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: label }, page: 1}); window.scrollTo(0,0); }} 
-          className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10">
-      {label}
-    </span>
-  );
+  const EntityLink = ({ type, label }) => {
+    const trimmedLabel = (label || '').trim();
+    if (!trimmedLabel || trimmedLabel === 'Não Informado') return <span>{label || 'Não Informado'}</span>;
+    return (
+      <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: trimmedLabel }, page: 1}); window.scrollTo(0,0); }} 
+            className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10">
+        {trimmedLabel}
+      </span>
+    );
+  };
 
   const StatusBadge = ({ pedido }) => {
     const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
@@ -519,6 +530,10 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-800 mb-1">Município / Bairro de Destino (Opcional)</label>
+                      <input type="text" list="list-locais" value={formData.enderecoRecebimento} onChange={e => setFormData({...formData, enderecoRecebimento: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -542,7 +557,6 @@ export default function App() {
                   const quantidadeEscolhida = pedidos[item.id] || 0;
                   const quantidadeEnviada = enviados[item.id] || 0;
 
-                  // Lógica visual: Mostrar o total comprado (totalAdquirido) ao invés do estoque restante
                   const infoEstoque = `Total Adquirido: ${item.totalAdquirido}`;
 
                   return (
@@ -563,7 +577,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Renderiza campo extra de Envio apenas no Modo de Edição e apenas para itens solicitados */}
                       {activeTab === 'editar_pedido' && quantidadeEscolhida > 0 && (
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
                           <span className="text-sm font-bold text-[#20B2AA] uppercase tracking-wider">Enviado:</span>
@@ -767,7 +780,8 @@ export default function App() {
                           <div className="flex-1 space-y-3 text-sm">
                             <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
                             <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
-                            <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Modo de Recebimento</span><br/><span className="font-bold text-slate-800">{pedido.modoRecebimento || 'Não Informado'}</span></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Destino (Endereço)</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || 'Não Informado'} /></div>
                             <div><span className="text-slate-500 text-xs font-bold uppercase">Agendamento</span><br/><span className="font-bold text-slate-800">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `às ${pedido.horarioRetirada}` : ''}</span></div>
                             
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4 relative">
@@ -797,13 +811,14 @@ export default function App() {
 
               {viewConfig.mode === 'list' && (
                  <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] mb-20">
-                   <table className="w-full text-left text-sm border-collapse min-w-[950px]">
+                   <table className="w-full text-left text-sm border-collapse min-w-[1050px]">
                      <thead>
                        <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
                          <SortHeader label="Inclusão" field="data" />
                          <SortHeader label="Liderança" field="lideranca" />
                          <SortHeader label="Articulador" field="articulador" />
-                         <SortHeader label="Local" field="local" />
+                         <th className="p-4 font-black">Modo</th>
+                         <SortHeader label="Destino (Endereço)" field="local" />
                          <SortHeader label="Agendamento" field="agendamento" />
                          <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais (S/ Filtro)</th>
                          <SortHeader label="Status" field="status" />
@@ -815,7 +830,8 @@ export default function App() {
                            <td className="p-4 font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</td>
                            <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || '-'} /></td>
                            <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || '-'} /></td>
-                           <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || '-'} /></td>
+                           <td className="p-4 text-xs font-bold text-slate-700">{pedido.modoRecebimento || '-'}</td>
+                           <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || '-'} /></td>
                            <td className="p-4 text-xs font-bold text-slate-700">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `(${pedido.horarioRetirada})` : ''}</td>
                            <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
                              {String(pedido.materiais || '').split('\n').join(' | ')}
@@ -834,11 +850,10 @@ export default function App() {
         </div>
       )}
 
-      {/* TELA DE MÓDULO DE ESTOQUE (NOVO) */}
+      {/* TELA DE MÓDULO DE ESTOQUE */}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
           
-          {/* Dashboard Resumo */}
           <div className="bg-slate-900 rounded-2xl p-6 md:p-8 shadow-[8px_8px_0px_0px_rgba(229,184,11,1)] text-white">
             <div className="flex justify-between items-start border-b border-slate-700 pb-4 mb-6">
               <div>
@@ -873,7 +888,7 @@ export default function App() {
               <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative">
                 <div className={`h-4 rounded-full transition-all ${percentualGlobalEstoque > 100 ? 'bg-[#DC143C]' : 'bg-[#E5B80B]'}`} style={{ width: `${Math.min(percentualGlobalEstoque, 100)}%` }}></div>
                 {percentualGlobalEstoque > 100 && (
-                   <div className="absolute top-0 right-0 h-full bg-[#DC143C]/50 w-full animate-pulse"></div> // Efeito visual de estouro
+                   <div className="absolute top-0 right-0 h-full bg-[#DC143C]/50 w-full animate-pulse"></div>
                 )}
               </div>
               {percentualGlobalEstoque > 100 && <p className="text-xs text-[#DC143C] font-bold mt-2 text-right">Demanda ultrapassou as compras totais.</p>}
@@ -894,7 +909,6 @@ export default function App() {
              <button onClick={() => setEstoqueViewConfig({mode: 'cards'})} className={`p-2 rounded-lg border-2 ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
           </div>
 
-          {/* Lista do Estoque */}
           {loadingEstoque ? (
             <div className="text-center py-20 font-bold text-slate-500"><div className="animate-spin text-[#20B2AA] mb-4 flex justify-center"><IconPackage /></div>Buscando Estoque...</div>
           ) : estoqueViewConfig.mode === 'list' ? (
@@ -967,11 +981,10 @@ export default function App() {
                })}
             </div>
           )}
-
         </div>
       )}
 
-      {/* MODAIS GERAIS (STATUS E CONFIRMAÇÃO EDIÇÃO) */}
+      {/* MODAL STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(32,178,170,1)] animate-in fade-in zoom-in-95 duration-200">
@@ -1005,6 +1018,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL CONFIRMAÇÃO EDIÇÃO COMPLETA */}
       {modalEditConfirm.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
