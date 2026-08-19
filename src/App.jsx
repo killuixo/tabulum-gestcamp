@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+// === ÍCONES SVG ===
 const IconUser = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const IconUsers = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
 const IconPackage = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"></path><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>;
@@ -13,6 +14,19 @@ const IconMessage = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="
 const IconTrendingUp = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
 const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 
+const GradientSpinner = ({ className = "w-10 h-10" }) => (
+  <svg className={`animate-spin ${className}`} viewBox="0 0 50 50">
+    <defs>
+      <linearGradient id="spinnerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#E5B80B" />
+        <stop offset="50%" stopColor="#DC143C" />
+        <stop offset="100%" stopColor="#20B2AA" />
+      </linearGradient>
+    </defs>
+    <circle cx="25" cy="25" r="20" fill="none" stroke="url(#spinnerGrad)" strokeWidth="5" strokeLinecap="round" strokeDasharray="90 150" />
+  </svg>
+);
+
 const initialFormState = {
   row: null,
   articulador: { nome: '', email: '', telefone: '' },
@@ -22,13 +36,13 @@ const initialFormState = {
   enderecoRecebimento: '',
   horarioRetirada: '',
   dataAgendada: '',
-  status: 'A ENVIAR',
+  status: 'Pendente',
   observacoes: ''
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('novo_pedido'); 
-  const [viewConfig, setViewConfig] = useState({ mode: 'list', sort: 'data_desc', page: 1, detailFilter: null });
+  const [viewConfig, setViewConfig] = useState({ mode: 'cards', sort: 'data_desc', page: 1, detailFilter: null });
   const [estoqueViewConfig, setEstoqueViewConfig] = useState({ mode: 'list' });
   
   const [formData, setFormData] = useState(initialFormState);
@@ -49,6 +63,8 @@ export default function App() {
   const [filters, setFilters] = useState({ articulador: [], lideranca: [], local: [] });
   const [modalStatus, setModalStatus] = useState({ show: false, step: 1, order: null, newStatus: '' });
   const [modalEditConfirm, setModalEditConfirm] = useState({ show: false, step: 1, changesSummary: [] });
+  const [modalNewConfirm, setModalNewConfirm] = useState({ show: false, changesSummary: [] });
+  const [modalViewOrder, setModalViewOrder] = useState({ show: false, order: null });
   const [modalLeva, setModalLeva] = useState({ show: false, step: 1, nome: '', itens: {} });
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -84,7 +100,7 @@ export default function App() {
       const response = await fetch(`${url}${separator}action=pedidos`);
       const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
-      if (result.type !== 'pedidos') throw new Error('A Planilha ainda está sincronizando. Aguarde alguns instantes e tente recarregar.');
+      if (result.type !== 'pedidos') throw new Error('A Planilha ainda está sincronizando. Aguarde.');
       setListaPedidos(result.data || []);
     } catch (error) {
       setMensagemLista(error.message);
@@ -129,7 +145,7 @@ export default function App() {
       lideranca: formData.lideranca, 
       modoRecebimento: formData.modoRecebimento,
       regiaoDespacho: formData.modoRecebimento === 'Despacho' ? formData.regiaoDespacho : '',
-      enderecoRecebimento: formData.enderecoRecebimento, 
+      enderecoRecebimento: formData.enderecoRecebimento,
       horarioRetirada: formData.modoRecebimento === 'Retirada no comitê' ? formData.horarioRetirada : '',
       dataAgendada: formData.dataAgendada,
       status: formData.status,
@@ -148,6 +164,7 @@ export default function App() {
         setActiveTab('dashboard'); 
         fetchPedidosData(); 
       } else {
+        setModalNewConfirm({show: false, summary: null});
         setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
         resetForm();
       }
@@ -176,18 +193,23 @@ export default function App() {
 
     if (estoque.filter(i => pedidos[i.id] > 0).length === 0) return setMensagem({ tipo: 'erro', texto: 'Selecione ao menos um material.' });
 
+    const summary = [
+      { label: 'Articulador', val: formData.articulador.nome },
+      { label: 'Liderança', val: formData.lideranca.nome },
+      { label: 'Destino', val: formData.modoRecebimento === 'Despacho' ? formData.enderecoRecebimento : (formData.enderecoRecebimento || 'Retirada no Comitê') },
+      { label: 'Agendamento', val: formData.dataAgendada ? formatarDataBR(formData.dataAgendada) : '-' },
+      { label: 'Status', val: formData.status }
+    ];
+
     if (activeTab === 'editar_pedido') {
-      const summary = [
-        { label: 'Articulador', val: formData.articulador.nome },
-        { label: 'Liderança', val: formData.lideranca.nome },
-        { label: 'Modo', val: formData.modoRecebimento },
-        { label: 'Destino', val: formData.enderecoRecebimento || 'Não Informado' },
-        { label: 'Status', val: formData.status }
-      ];
       setModalEditConfirm({ show: true, step: 1, changesSummary: summary });
     } else {
-      processSubmit(false);
+      setModalNewConfirm({ show: true, changesSummary: summary });
     }
+  };
+
+  const handleOpenView = (pedido) => {
+    setModalViewOrder({ show: true, order: pedido });
   };
 
   const handleOpenEdit = (pedido) => {
@@ -254,6 +276,9 @@ export default function App() {
       
       setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
       setModalStatus({ show: false, step: 1, order: null, newStatus: '' });
+      if (modalViewOrder.show) {
+         setModalViewOrder(prev => ({...prev, order: {...prev.order, status: modalStatus.newStatus}}));
+      }
     } catch (error) {
       alert("Erro ao alterar status: " + error.message);
     } finally {
@@ -304,7 +329,7 @@ export default function App() {
     }
     if (filters.articulador.length > 0) filtered = filtered.filter(p => filters.articulador.includes((p.articuladorNome || '').trim()));
     if (filters.lideranca.length > 0) filtered = filtered.filter(p => filters.lideranca.includes((p.liderancaNome || '').trim()));
-    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes((p.enderecoRecebimento || '').trim()));
+    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes((p.enderecoRecebimento || p.modoRecebimento || '').trim()));
 
     return filtered.sort((a, b) => {
       const isAsc = viewConfig.sort.endsWith('asc') ? 1 : -1;
@@ -313,7 +338,7 @@ export default function App() {
       if (field === 'agendamento') return (parseDateString(a.dataAgendada) - parseDateString(b.dataAgendada)) * isAsc;
       if (field === 'articulador') return String(a.articuladorNome).localeCompare(String(b.articuladorNome)) * isAsc;
       if (field === 'lideranca') return String(a.liderancaNome).localeCompare(String(b.liderancaNome)) * isAsc;
-      if (field === 'local') return String(a.enderecoRecebimento).localeCompare(String(b.enderecoRecebimento)) * isAsc;
+      if (field === 'local') return String(a.enderecoRecebimento || a.modoRecebimento).localeCompare(String(b.enderecoRecebimento || b.modoRecebimento)) * isAsc;
       if (field === 'status') return String(a.status).localeCompare(String(b.status)) * isAsc;
       return 0;
     });
@@ -328,7 +353,7 @@ export default function App() {
 
   const uniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
   const uniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
-  const uniqueLocais = [...new Set(listaPedidos.map(p => (p.enderecoRecebimento || '').trim()).filter(Boolean))].sort();
+  const uniqueLocais = [...new Set(listaPedidos.map(p => (p.enderecoRecebimento || p.modoRecebimento || '').trim()).filter(Boolean))].sort();
 
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
@@ -372,9 +397,9 @@ export default function App() {
   const StatusBadge = ({ pedido }) => {
     const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
     return (
-      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'A ENVIAR' : 'ENVIADO' }); }}
+      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'Pendente' : 'ENVIADO' }); }}
               className={`relative z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
-        {pedido.status || 'A ENVIAR'}
+        {pedido.status || 'Pendente'}
       </button>
     );
   };
@@ -395,12 +420,12 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
       
-      {/* Datalists para Autocomplete */}
+      {/* Datalists */}
       <datalist id="list-articuladores">{uniqueArticuladores.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-liderancas">{uniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-locais">{uniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
 
-      {/* Navegação de Abas e Cabeçalho */}
+      {/* Navegação de Abas / Header */}
       <div className="max-w-6xl mx-auto mb-8 flex flex-col lg:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3 md:gap-5 mb-4 lg:mb-0">
           <img 
@@ -408,9 +433,14 @@ export default function App() {
             alt="Tabulum Logo" 
             className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-xl shadow-sm border-2 border-slate-900"
           />
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 inline-block pb-1 leading-tight">
-            TABULUM <span className="hidden md:inline"> - </span> <span className="block md:inline text-lg md:text-2xl text-slate-600 font-bold border-none">Gestão de Material de Campanha</span>
-          </h1>
+          <div className="flex flex-col pt-1">
+            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 pb-1 mb-1 leading-none">
+              TABULUM
+            </h1>
+            <div className="flex justify-between w-full text-[0.55rem] md:text-[0.65rem] font-black text-slate-600 uppercase tracking-[0.1em]">
+              <span>Gestão</span><span>de</span><span>Material</span><span>de</span><span>Campanha</span>
+            </div>
+          </div>
         </div>
         <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner border-2 border-slate-300 flex-wrap justify-center gap-1">
           <button onClick={() => {resetForm(); setActiveTab('novo_pedido');}} className={`px-4 md:px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'novo_pedido' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Novo Pedido</button>
@@ -419,7 +449,7 @@ export default function App() {
         </div>
       </div>
 
-      {}
+      {/* FORMULÁRIO */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
           
@@ -550,7 +580,7 @@ export default function App() {
             </div>
             {loadingEstoque ? (
               <div className="text-center py-10 font-bold text-slate-500 flex flex-col items-center">
-                <div className="animate-spin text-[#DC143C] mb-4"><IconPackage /></div>
+                <GradientSpinner className="w-12 h-12 mb-4" />
                 Buscando estoque da planilha...
               </div>
             ) : (
@@ -558,7 +588,6 @@ export default function App() {
                 {estoque.map((item) => {
                   const quantidadeEscolhida = pedidos[item.id] || 0;
                   const quantidadeEnviada = enviados[item.id] || 0;
-
                   const infoEstoque = `Total Adquirido: ${item.totalAdquirido}`;
 
                   return (
@@ -589,7 +618,6 @@ export default function App() {
                           </div>
                         </div>
                       )}
-
                     </div>
                   );
                 })}
@@ -597,7 +625,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Campo de Observações Gerais e Status Manual (Apenas Visível na Edição) */}
+          {/* Observações e Status (Apenas Visível na Edição) */}
           <div className="md:col-span-12 bg-[#F0F4F8] rounded-2xl p-6 border-2 border-slate-300 shadow-sm">
              <div className="flex items-center space-x-3 mb-4">
               <div className="text-slate-600"><IconMessage /></div>
@@ -609,8 +637,8 @@ export default function App() {
                 <label className="block text-sm font-bold text-slate-800 mb-2">Status do Pedido</label>
                 <div className="flex space-x-4">
                   <label className="flex items-center space-x-2 cursor-pointer p-2 border-2 rounded-lg bg-white border-slate-200 hover:border-[#E5B80B]">
-                    <input type="radio" value="A ENVIAR" checked={formData.status === 'A ENVIAR'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#E5B80B]"/>
-                    <span className="font-bold text-[#B8860B]">A ENVIAR</span>
+                    <input type="radio" value="Pendente" checked={formData.status === 'Pendente'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#E5B80B]"/>
+                    <span className="font-bold text-[#B8860B]">Pendente</span>
                   </label>
                   <label className="flex items-center space-x-2 cursor-pointer p-2 border-2 rounded-lg bg-white border-slate-200 hover:border-[#20B2AA]">
                     <input type="radio" value="ENVIADO" checked={formData.status === 'ENVIADO'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#20B2AA]"/>
@@ -666,14 +694,19 @@ export default function App() {
                 </div>
               )}
             </div>
-            <button type="submit" disabled={submitting} className={`w-full md:w-auto flex justify-center items-center space-x-2 text-white font-black uppercase py-4 px-10 rounded-xl transition-all hover:scale-105 border-2 border-white disabled:opacity-70 ${activeTab === 'editar_pedido' ? 'bg-[#20B2AA] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.5)]' : 'bg-[#DC143C] shadow-[4px_4px_0px_0px_rgba(229,184,11,1)]'}`}>
-              {submitting ? <span>Salvando...</span> : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Confirmar Pedido'}</span>}
+            <button type="submit" disabled={submitting} className={`w-full md:w-auto flex justify-center items-center text-white font-black uppercase py-4 px-10 rounded-xl transition-all hover:scale-105 border-2 border-white disabled:opacity-70 ${activeTab === 'editar_pedido' ? 'bg-[#20B2AA] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.5)]' : 'bg-[#DC143C] shadow-[4px_4px_0px_0px_rgba(229,184,11,1)]'}`}>
+              {submitting ? (
+                <div className="flex items-center space-x-2">
+                  <GradientSpinner className="w-5 h-5" />
+                  <span>Salvando...</span>
+                </div>
+              ) : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Confirmar Pedido'}</span>}
             </button>
           </div>
         </form>
       )}
 
-      {}
+      {/* DASHBOARD DE PEDIDOS */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
@@ -698,7 +731,6 @@ export default function App() {
           )}
 
           <div className="bg-white p-6 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] space-y-6">
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500 mb-3 flex justify-between">
@@ -750,6 +782,17 @@ export default function App() {
               <div className="font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-lg">
                 Exibindo: <span className="text-slate-900">{sortedPedidos.length}</span> resultados
               </div>
+              
+              <div className="flex items-center space-x-2">
+                 <span className="font-bold text-slate-500 text-sm">Ordenar:</span>
+                 <select className="p-2 border-2 border-slate-300 rounded-lg bg-white font-bold text-sm text-slate-800 focus:outline-none focus:border-[#20B2AA]" value={viewConfig.sort} onChange={(e) => setViewConfig({...viewConfig, sort: e.target.value})}>
+                   <option value="data_desc">Data Inclusão (Mais recentes)</option>
+                   <option value="data_asc">Data Inclusão (Mais antigos)</option>
+                   <option value="agendamento_asc">Agendamento (Próximos)</option>
+                   <option value="agendamento_desc">Agendamento (Distantes)</option>
+                 </select>
+              </div>
+
               <div className="flex space-x-2">
                 <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
                 <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
@@ -759,7 +802,7 @@ export default function App() {
 
           {loadingPedidos ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
-              <div className="animate-spin text-[#20B2AA] mb-4"><IconPackage /></div>
+              <GradientSpinner className="w-12 h-12 mb-4" />
               Buscando Pedidos da Planilha...
             </div>
           ) : (
@@ -773,17 +816,19 @@ export default function App() {
                       </div>
                     ) : (
                       displayedPedidos.map(pedido => (
-                        <div key={pedido.row} onClick={() => handleOpenEdit(pedido)} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] cursor-pointer transition-all transform hover:-translate-y-1">
+                        <div key={pedido.row} onClick={() => handleOpenView(pedido)} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] cursor-pointer transition-all transform hover:-translate-y-1">
                           <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
                             <StatusBadge pedido={pedido} />
-                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">L-{pedido.row}</span>
+                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                              {String(pedido.data || '').split(' ')[0] || '-'}
+                            </span>
                           </div>
                           
                           <div className="flex-1 space-y-3 text-sm">
                             <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
                             <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
-                            <div><span className="text-slate-500 text-xs font-bold uppercase">Modo de Recebimento</span><br/><span className="font-bold text-slate-800">{pedido.modoRecebimento || 'Não Informado'}</span></div>
-                            <div><span className="text-slate-500 text-xs font-bold uppercase">Destino (Endereço)</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || 'Não Informado'} /></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Modo</span><br/><span className="font-bold text-slate-800">{pedido.modoRecebimento || 'Não Informado'}</span></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Destino (Local)</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || 'Não Informado'} /></div>
                             <div><span className="text-slate-500 text-xs font-bold uppercase">Agendamento</span><br/><span className="font-bold text-slate-800">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `às ${pedido.horarioRetirada}` : ''}</span></div>
                             
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4 relative">
@@ -816,11 +861,11 @@ export default function App() {
                    <table className="w-full text-left text-sm border-collapse min-w-[1050px]">
                      <thead>
                        <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
-                         <SortHeader label="Inclusão" field="data" />
+                         <SortHeader label="Data Inclusão" field="data" />
                          <SortHeader label="Liderança" field="lideranca" />
                          <SortHeader label="Articulador" field="articulador" />
                          <th className="p-4 font-black">Modo</th>
-                         <SortHeader label="Destino (Endereço)" field="local" />
+                         <SortHeader label="Local" field="local" />
                          <SortHeader label="Agendamento" field="agendamento" />
                          <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais (S/ Filtro)</th>
                          <SortHeader label="Status" field="status" />
@@ -828,7 +873,7 @@ export default function App() {
                      </thead>
                      <tbody>
                        {displayedPedidos.map(pedido => (
-                         <tr key={pedido.row} onClick={() => handleOpenEdit(pedido)} className="border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer group">
+                         <tr key={pedido.row} onClick={() => handleOpenView(pedido)} className="border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer group">
                            <td className="p-4 font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</td>
                            <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || '-'} /></td>
                            <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || '-'} /></td>
@@ -848,11 +893,10 @@ export default function App() {
               )}
             </>
           )}
-
         </div>
       )}
 
-      {}
+      {/* ESTOQUE */}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
           
@@ -912,7 +956,10 @@ export default function App() {
           </div>
 
           {loadingEstoque ? (
-            <div className="text-center py-20 font-bold text-slate-500"><div className="animate-spin text-[#20B2AA] mb-4 flex justify-center"><IconPackage /></div>Buscando Estoque...</div>
+            <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
+               <GradientSpinner className="w-12 h-12 mb-4" />
+               Buscando Estoque...
+            </div>
           ) : estoqueViewConfig.mode === 'list' ? (
             <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)]">
                <table className="w-full text-left text-sm border-collapse min-w-[800px]">
@@ -986,8 +1033,7 @@ export default function App() {
         </div>
       )}
 
-      {}
-      {/* MODAL STATUS RÁPIDO */}
+      {/* MODAL DE STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(32,178,170,1)] animate-in fade-in zoom-in-95 duration-200">
@@ -995,7 +1041,9 @@ export default function App() {
               <>
                 <div className="w-16 h-16 bg-[#E5B80B]/20 text-[#E5B80B] rounded-full flex items-center justify-center mb-6 mx-auto"><IconAlert /></div>
                 <h3 className="text-2xl font-black text-center text-slate-900 mb-2">Confirmar Ação</h3>
-                <p className="text-center text-slate-600 font-medium mb-8">Você está prestes a alterar o status deste pedido para <strong className="text-slate-900">{modalStatus.newStatus}</strong>. Deseja continuar?</p>
+                <p className="text-center text-slate-600 font-medium mb-8">
+                  Você está prestes a alterar o status deste pedido para <strong className="text-slate-900">{modalStatus.newStatus}</strong>. Deseja continuar?
+                </p>
                 <div className="flex gap-4">
                   <button onClick={() => setModalStatus({show: false})} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Cancelar</button>
                   <button onClick={() => setModalStatus({...modalStatus, step: 2})} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] hover:bg-slate-800">Sim, continuar</button>
@@ -1012,7 +1060,7 @@ export default function App() {
                 <div className="flex gap-4">
                   <button onClick={() => setModalStatus({show: false})} disabled={updatingStatus} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
                   <button onClick={confirmStatusChange} disabled={updatingStatus} className="flex-1 flex justify-center items-center py-3 bg-[#20B2AA] text-white font-black rounded-xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:bg-[#1c9c95] border-2 border-[#20B2AA] disabled:opacity-70">
-                    {updatingStatus ? "Salvando..." : "Confirmar e Salvar"}
+                    {updatingStatus ? <GradientSpinner className="w-6 h-6" /> : "Confirmar e Salvar"}
                   </button>
                 </div>
               </>
@@ -1021,32 +1069,105 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONFIRMAÇÃO EDIÇÃO COMPLETA */}
-      {modalEditConfirm.show && (
+      {/* MODAL FICHA RESUMIDA (Visualização) */}
+      {modalViewOrder.show && modalViewOrder.order && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-lg w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
+             <div className="flex justify-between items-start border-b-2 border-slate-200 pb-4 mb-4">
+                <div>
+                   <h3 className="text-2xl font-black text-slate-900">Ficha L-{modalViewOrder.order.row}</h3>
+                   <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">{modalViewOrder.order.data.split(' ')[0]}</span>
+                </div>
+                <StatusBadge pedido={modalViewOrder.order} />
+             </div>
+             
+             <div className="space-y-4 text-sm mb-6 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-2 gap-4">
+                   <p><span className="font-bold text-slate-500">Liderança:</span><br/><span className="font-black text-slate-800 text-base">{modalViewOrder.order.liderancaNome}</span></p>
+                   <p><span className="font-bold text-slate-500">Articulador:</span><br/><span className="font-black text-slate-800 text-base">{modalViewOrder.order.articuladorNome}</span></p>
+                </div>
+                <div>
+                   <p><span className="font-bold text-slate-500">Destino / Modo:</span><br/><span className="font-bold text-slate-800">{modalViewOrder.order.enderecoRecebimento || modalViewOrder.order.modoRecebimento}</span></p>
+                </div>
+                <div>
+                   <p><span className="font-bold text-slate-500">Agendamento:</span><br/><span className="font-bold text-[#DC143C]">{modalViewOrder.order.dataAgendada ? formatarDataBR(modalViewOrder.order.dataAgendada) : '-'} {modalViewOrder.order.horarioRetirada ? `às ${modalViewOrder.order.horarioRetirada}` : ''}</span></p>
+                </div>
+                
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <span className="text-slate-500 text-xs font-bold uppercase mb-2 block border-b border-slate-200 pb-1">Materiais Solicitados</span>
+                  <div className="flex justify-between text-slate-700">
+                    <p className="whitespace-pre-line leading-relaxed pr-2">{modalViewOrder.order.materiais}</p>
+                    <p className="whitespace-pre-line leading-relaxed font-black text-right text-[#20B2AA]">{modalViewOrder.order.quantidades}</p>
+                  </div>
+                </div>
+
+                {modalViewOrder.order.observacoes && (
+                  <div className="bg-[#E5B80B]/10 p-3 rounded-lg border border-[#E5B80B]/30">
+                    <span className="text-[#B8860B] text-xs font-bold uppercase mb-1 block">Observações:</span>
+                    <p className="text-slate-800">{modalViewOrder.order.observacoes}</p>
+                  </div>
+                )}
+             </div>
+
+             <div className="flex gap-4">
+                <button onClick={() => setModalViewOrder({ show: false, order: null })} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Fechar</button>
+                <button onClick={() => { handleOpenEdit(modalViewOrder.order); setModalViewOrder({ show: false, order: null }); }} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(32,178,170,1)] hover:bg-slate-800">
+                   Editar Pedido
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO (Novo e Edição) */}
+      {(modalEditConfirm.show || modalNewConfirm.show) && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
-            {modalEditConfirm.step === 1 ? (
+            
+            {(modalEditConfirm.step === 1 && modalEditConfirm.show) || modalNewConfirm.show ? (
               <>
                 <div className="w-16 h-16 bg-[#20B2AA]/20 text-[#20B2AA] rounded-full flex items-center justify-center mb-6 mx-auto"><IconCheck /></div>
-                <h3 className="text-2xl font-black text-center text-slate-900 mb-2">Salvar Edição?</h3>
-                <p className="text-center text-slate-600 font-medium mb-8">Você está prestes a reescrever todas as informações do pedido da linha <strong className="text-slate-900">L-{formData.row}</strong> na planilha.</p>
+                <h3 className="text-2xl font-black text-center text-slate-900 mb-2">
+                   {modalEditConfirm.show ? 'Salvar Edição?' : 'Confirmar Novo Pedido'}
+                </h3>
+                <p className="text-center text-slate-600 font-medium mb-6">
+                  {modalEditConfirm.show 
+                    ? `Você está prestes a reescrever todas as informações do pedido da linha L-${formData.row}.`
+                    : 'Confira os dados principais antes de registrar na planilha.'}
+                </p>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-300 mb-6 space-y-2 text-sm">
+                  {(modalEditConfirm.show ? modalEditConfirm.changesSummary : modalNewConfirm.changesSummary).map((item, idx) => (
+                    <div key={idx} className="flex justify-between border-b border-slate-200 pb-1 last:border-0 last:pb-0">
+                      <span className="font-bold text-slate-500">{item.label}:</span>
+                      <span className="font-bold text-slate-800 text-right">{item.val}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between pt-1">
+                      <span className="font-bold text-slate-500">Materiais:</span>
+                      <span className="font-black text-[#DC143C]">{estoque.filter(i => pedidos[i.id] > 0).length} selecionado(s)</span>
+                  </div>
+                </div>
+
                 <div className="flex gap-4">
-                  <button onClick={() => setModalEditConfirm({show: false})} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Voltar</button>
-                  <button onClick={() => setModalEditConfirm({...modalEditConfirm, step: 2})} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800">Sim, Continuar</button>
+                  <button onClick={() => { setModalEditConfirm({show: false}); setModalNewConfirm({show: false}); }} disabled={submitting} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
+                    {modalEditConfirm.show ? 'Voltar' : 'Revisar Dados'}
+                  </button>
+                  <button onClick={() => modalEditConfirm.show ? setModalEditConfirm({...modalEditConfirm, step: 2}) : processSubmit(false)} disabled={submitting} className="flex-1 flex justify-center items-center py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800 disabled:opacity-70">
+                    {submitting ? <GradientSpinner className="w-6 h-6" /> : (modalEditConfirm.show ? 'Sim, Continuar' : 'Gravar Pedido')}
+                  </button>
                 </div>
               </>
             ) : (
+              // ETAPA 2 DA EDIÇÃO
               <>
-                <h3 className="text-2xl font-black text-slate-900 mb-4 border-b-2 border-slate-200 pb-2">Resumo da Edição</h3>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-300 mb-6 space-y-3 text-sm">
-                  {modalEditConfirm.changesSummary.map((item, idx) => (
-                    <p key={idx}><span className="font-bold text-slate-500">{item.label}:</span><br/><span className="font-bold text-slate-800">{item.val}</span></p>
-                  ))}
-                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-4 border-b-2 border-slate-200 pb-2">Atenção</h3>
+                <p className="mb-6 text-center text-slate-700 font-bold">Deseja sobrepor a planilha com estes dados definitivamente?</p>
+                
                 <div className="flex gap-4">
                   <button onClick={() => setModalEditConfirm({show: false})} disabled={submitting} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
                   <button onClick={() => processSubmit(true)} disabled={submitting} className="flex-1 flex justify-center items-center py-3 bg-[#20B2AA] text-white font-black rounded-xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:bg-[#1c9c95] border-2 border-[#20B2AA] disabled:opacity-70">
-                    {submitting ? "Salvando..." : "Confirmar e Salvar"}
+                    {submitting ? <GradientSpinner className="w-6 h-6" /> : "Confirmar e Salvar"}
                   </button>
                 </div>
               </>
@@ -1055,7 +1176,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL NOVA LEVA */}
+      {/* MODAL NOVA LEVA (Estoque) */}
       {modalLeva.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-[8px_8px_0px_0px_rgba(229,184,11,1)] animate-in fade-in zoom-in-95 duration-200">
@@ -1098,7 +1219,7 @@ export default function App() {
                 <div className="flex gap-4">
                   <button onClick={() => setModalLeva({...modalLeva, step: 1})} disabled={updatingStatus} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Voltar</button>
                   <button onClick={handleCreateLeva} disabled={updatingStatus} className="flex-1 flex justify-center items-center py-3 bg-[#E5B80B] text-slate-900 font-black rounded-xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:bg-[#d4aa0a] border-2 border-[#E5B80B] disabled:opacity-70">
-                    {updatingStatus ? "Salvando..." : "Confirmar e Salvar"}
+                    {updatingStatus ? <GradientSpinner className="w-6 h-6" /> : "Confirmar e Salvar"}
                   </button>
                 </div>
               </>
