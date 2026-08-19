@@ -129,7 +129,7 @@ export default function App() {
       lideranca: formData.lideranca, 
       modoRecebimento: formData.modoRecebimento,
       regiaoDespacho: formData.modoRecebimento === 'Despacho' ? formData.regiaoDespacho : '',
-      enderecoRecebimento: formData.enderecoRecebimento, // Salva o endereço independente de ser despacho ou retirada
+      enderecoRecebimento: formData.enderecoRecebimento, 
       horarioRetirada: formData.modoRecebimento === 'Retirada no comitê' ? formData.horarioRetirada : '',
       dataAgendada: formData.dataAgendada,
       status: formData.status,
@@ -172,7 +172,6 @@ export default function App() {
     if (formData.modoRecebimento === 'Retirada no comitê') {
       if (!formData.dataAgendada) return setMensagem({ tipo: 'erro', texto: 'A data da retirada é obrigatória.' });
       if (!formData.horarioRetirada) return setMensagem({ tipo: 'erro', texto: 'Selecione o horário.' });
-      // Endereço é opcional na retirada, passa direto.
     }
 
     if (estoque.filter(i => pedidos[i.id] > 0).length === 0) return setMensagem({ tipo: 'erro', texto: 'Selecione ao menos um material.' });
@@ -300,7 +299,6 @@ export default function App() {
   const getFilteredAndSortedPedidos = () => {
     let filtered = [...listaPedidos];
     
-    // Assegura que o trim não jogue fora as strings ao filtrar
     if (viewConfig.detailFilter) {
       filtered = filtered.filter(p => (p[viewConfig.detailFilter.type] || '').trim() === viewConfig.detailFilter.value);
     }
@@ -328,7 +326,6 @@ export default function App() {
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
     : sortedPedidos; 
 
-  // Listas de Datalists sem as duplicações de espaços
   const uniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
   const uniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
   const uniqueLocais = [...new Set(listaPedidos.map(p => (p.enderecoRecebimento || '').trim()).filter(Boolean))].sort();
@@ -403,11 +400,16 @@ export default function App() {
       <datalist id="list-liderancas">{uniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-locais">{uniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
 
-      {/* Navegação de Abas */}
-      <div className="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 inline-block pb-1">
-            Gestão 2026
+      {/* Navegação de Abas e Cabeçalho */}
+      <div className="max-w-6xl mx-auto mb-8 flex flex-col lg:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-5 mb-4 lg:mb-0">
+          <img 
+            src="https://raw.githubusercontent.com/killuixo/tabulum-gestcamp/refs/heads/main/icon-192.png" 
+            alt="Tabulum Logo" 
+            className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-xl shadow-sm border-2 border-slate-900"
+          />
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 inline-block pb-1 leading-tight">
+            TABULUM <span className="hidden md:inline"> - </span> <span className="block md:inline text-lg md:text-2xl text-slate-600 font-bold border-none">Gestão de Material de Campanha</span>
           </h1>
         </div>
         <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner border-2 border-slate-300 flex-wrap justify-center gap-1">
@@ -417,7 +419,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* TELA DE NOVO E EDIÇÃO DE PEDIDO */}
+      {}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
           
@@ -671,7 +673,7 @@ export default function App() {
         </form>
       )}
 
-      {/* TELA DE DASHBOARD DE PEDIDOS */}
+      {}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
@@ -850,7 +852,7 @@ export default function App() {
         </div>
       )}
 
-      {/* TELA DE MÓDULO DE ESTOQUE */}
+      {}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
           
@@ -984,6 +986,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       {/* MODAL STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
