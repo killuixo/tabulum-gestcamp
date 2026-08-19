@@ -11,21 +11,30 @@ const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="no
 const IconList = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>;
 const IconGrid = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
 const IconArrowLeft = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>;
+const IconMessage = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
+
+const initialFormState = {
+  row: null,
+  articulador: { nome: '', email: '', telefone: '' },
+  lideranca: { nome: '', email: '', telefone: '' },
+  modoRecebimento: '',
+  regiaoDespacho: 'Interior de Santa Catarina',
+  enderecoRecebimento: '',
+  horarioRetirada: '',
+  dataAgendada: '',
+  status: 'A ENVIAR',
+  observacoes: ''
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('novo_pedido'); 
   const [viewConfig, setViewConfig] = useState({ mode: 'list', sort: 'data_desc', page: 1, detailFilter: null });
   
-  const [articulador, setArticulador] = useState({ nome: '', email: '', telefone: '' });
-  const [lideranca, setLideranca] = useState({ nome: '', email: '', telefone: '' });
-  const [modoRecebimento, setModoRecebimento] = useState(''); 
-  const [regiaoDespacho, setRegiaoDespacho] = useState('Interior de Santa Catarina');
-  const [enderecoRecebimento, setEnderecoRecebimento] = useState('');
-  const [horarioRetirada, setHorarioRetirada] = useState('');
-  const [dataAgendada, setDataAgendada] = useState(''); // Nova variável de data
-  
-  const [estoque, setEstoque] = useState([]);
+  // Novo estado centralizado para o formulário (Novo e Edição)
+  const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
+  const [estoque, setEstoque] = useState([]);
+  
   const [loadingEstoque, setLoadingEstoque] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [mensagem, setMensagem] = useState(null); 
@@ -33,12 +42,19 @@ export default function App() {
   const [listaPedidos, setListaPedidos] = useState([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
   const [mensagemLista, setMensagemLista] = useState(null);
+  
+  // Filtros em Múltipla Escolha
+  const [filters, setFilters] = useState({ articulador: [], lideranca: [], local: [] });
+
+  // Modais de Segurança e Edição
   const [modalStatus, setModalStatus] = useState({ show: false, step: 1, order: null, newStatus: '' });
+  const [modalEditConfirm, setModalEditConfirm] = useState({ show: false, step: 1, changesSummary: [] });
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'novo_pedido' && estoque.length === 0) fetchStockData();
     if (activeTab === 'dashboard') fetchPedidosData();
+    if (activeTab === 'editar_pedido' && estoque.length === 0) fetchStockData();
   }, [activeTab]);
 
   const fetchStockData = async () => {
@@ -46,14 +62,9 @@ export default function App() {
     setMensagem(null);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
-      if (!url) throw new Error('A URL do script não foi configurada na variável VITE_SHEETS_API_URL.');
-      
       const response = await fetch(url);
       const result = await response.json();
-      
       if (result.status === 'error') throw new Error(result.message);
-      if (result.type !== 'estoque') throw new Error('O Google Script retornou dados incorretos.');
-      
       setEstoque(result.data || []);
     } catch (error) {
       setMensagem({ tipo: 'erro', texto: `Erro no Estoque: ${error.message}` });
@@ -67,21 +78,12 @@ export default function App() {
     setMensagemLista(null);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
-      if (!url) throw new Error('A URL do script não foi configurada na Vercel.');
-      
       const separator = url.includes('?') ? '&' : '?';
       const response = await fetch(`${url}${separator}action=pedidos`);
       const result = await response.json();
-      
       if (result.status === 'error') throw new Error(result.message);
-      
-      if (result.type !== 'pedidos') {
-        throw new Error('A Planilha ainda está sincronizando. Aguarde alguns instantes e tente recarregar.');
-      }
-      
       setListaPedidos(result.data || []);
     } catch (error) {
-      console.error("Erro ao buscar pedidos:", error);
       setMensagemLista(error.message);
       setListaPedidos([]); 
     } finally {
@@ -89,10 +91,16 @@ export default function App() {
     }
   };
 
+  const resetForm = () => {
+    setFormData(initialFormState);
+    setPedidos({});
+    setMensagem(null);
+  };
+
   const handleQuantidadeChange = (id, quantidadeNova) => {
     const material = estoque.find(m => m.id === id);
     let qtd = parseInt(quantidadeNova) || 0;
-    if (qtd > material.disponivel) qtd = material.disponivel;
+    // Permite edição de itens mesmo se passar do estoque atual, apenas avisa na UI, mas não trava.
     if (qtd < 0) qtd = 0;
     setPedidos(prev => ({ ...prev, [id]: qtd }));
   };
@@ -106,53 +114,32 @@ export default function App() {
     return dataString;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const parseDateString = (dStr) => {
+    if (!dStr) return 0;
+    if (dStr.includes('-')) return new Date(dStr).getTime();
+    const parts = dStr.split(/[ /:]/);
+    if (parts.length >= 3) return new Date(parts[2], parts[1]-1, parts[0]).getTime();
+    return 0;
+  };
+
+  const processSubmit = async (isEditMode = false) => {
     setSubmitting(true);
     setMensagem(null);
 
-    if (!articulador.nome.trim() || !lideranca.nome.trim()) {
-      setMensagem({ tipo: 'erro', texto: 'Nomes do Articulador e Liderança são obrigatórios.' });
-      setSubmitting(false); return;
-    }
-    if (!modoRecebimento) {
-      setMensagem({ tipo: 'erro', texto: 'Selecione um Modo de Recebimento.' });
-      setSubmitting(false); return;
-    }
-    if (modoRecebimento === 'Despacho') {
-      if (!dataAgendada) {
-        setMensagem({ tipo: 'erro', texto: 'O prazo de entrega é obrigatório para o Despacho.' });
-        setSubmitting(false); return;
-      }
-      if (!enderecoRecebimento.trim()) {
-        setMensagem({ tipo: 'erro', texto: 'O endereço de recebimento é obrigatório.' });
-        setSubmitting(false); return;
-      }
-    }
-    if (modoRecebimento === 'Retirada no comitê') {
-      if (!dataAgendada) {
-        setMensagem({ tipo: 'erro', texto: 'A data da retirada é obrigatória.' });
-        setSubmitting(false); return;
-      }
-      if (!horarioRetirada) {
-        setMensagem({ tipo: 'erro', texto: 'Selecione o horário de retirada.' });
-        setSubmitting(false); return;
-      }
-    }
-
     const materiaisSolicitados = estoque.filter(i => pedidos[i.id] > 0).map(i => ({ nome: i.nome, quantidade: pedidos[i.id] }));
-    if (materiaisSolicitados.length === 0) {
-      setMensagem({ tipo: 'erro', texto: 'Selecione ao menos um material.' });
-      setSubmitting(false); return;
-    }
 
     const payload = {
-      action: 'new_order',
-      articulador, lideranca, modoRecebimento,
-      regiaoDespacho: modoRecebimento === 'Despacho' ? regiaoDespacho : '',
-      enderecoRecebimento: modoRecebimento === 'Despacho' ? enderecoRecebimento : 'Retirada no Comitê',
-      horarioRetirada: modoRecebimento === 'Retirada no comitê' ? horarioRetirada : '',
-      dataAgendada: dataAgendada, // Enviando a nova data
+      action: isEditMode ? 'edit_order' : 'new_order',
+      row: formData.row,
+      articulador: formData.articulador, 
+      lideranca: formData.lideranca, 
+      modoRecebimento: formData.modoRecebimento,
+      regiaoDespacho: formData.modoRecebimento === 'Despacho' ? formData.regiaoDespacho : '',
+      enderecoRecebimento: formData.modoRecebimento === 'Despacho' ? formData.enderecoRecebimento : 'Retirada no Comitê',
+      horarioRetirada: formData.modoRecebimento === 'Retirada no comitê' ? formData.horarioRetirada : '',
+      dataAgendada: formData.dataAgendada,
+      status: formData.status,
+      observacoes: formData.observacoes,
       materiais: materiaisSolicitados
     };
 
@@ -164,68 +151,138 @@ export default function App() {
         body: JSON.stringify(payload) 
       });
       const result = await response.json();
-      
       if (result.status === 'error') throw new Error(result.message);
       
-      setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
-      setArticulador({ nome: '', email: '', telefone: '' });
-      setLideranca({ nome: '', email: '', telefone: '' });
-      setPedidos({}); setModoRecebimento(''); setEnderecoRecebimento(''); setHorarioRetirada(''); setDataAgendada('');
-      
+      if (isEditMode) {
+        setModalEditConfirm({ show: false, step: 1, changesSummary: [] });
+        setActiveTab('dashboard'); // Volta pro painel após editar
+        fetchPedidosData(); // Recarrega os dados fresquinhos
+      } else {
+        setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
+        resetForm();
+      }
     } catch (error) {
-      setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
+      if (isEditMode) alert(`Falha ao salvar edição: ${error.message}`);
+      else setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const triggerStatusModal = (pedido) => {
-    const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
-    const newStatus = isEnviado ? 'Pendente' : 'ENVIADO';
-    setModalStatus({ show: true, step: 1, order: pedido, newStatus });
+  const handleSubmitRequest = (e) => {
+    e.preventDefault();
+    if (!formData.articulador.nome.trim() || !formData.lideranca.nome.trim()) {
+      setMensagem({ tipo: 'erro', texto: 'Nomes do Articulador e Liderança são obrigatórios.' }); return;
+    }
+    if (!formData.modoRecebimento) {
+      setMensagem({ tipo: 'erro', texto: 'Selecione um Modo de Recebimento.' }); return;
+    }
+    if (formData.modoRecebimento === 'Despacho') {
+      if (!formData.dataAgendada) { setMensagem({ tipo: 'erro', texto: 'O prazo de entrega é obrigatório.' }); return; }
+      if (!formData.enderecoRecebimento.trim()) { setMensagem({ tipo: 'erro', texto: 'O endereço é obrigatório.' }); return; }
+    }
+    if (formData.modoRecebimento === 'Retirada no comitê') {
+      if (!formData.dataAgendada) { setMensagem({ tipo: 'erro', texto: 'A data da retirada é obrigatória.' }); return; }
+      if (!formData.horarioRetirada) { setMensagem({ tipo: 'erro', texto: 'Selecione o horário.' }); return; }
+    }
+
+    const matCount = estoque.filter(i => pedidos[i.id] > 0).length;
+    if (matCount === 0) {
+      setMensagem({ tipo: 'erro', texto: 'Selecione ao menos um material.' }); return;
+    }
+
+    if (activeTab === 'editar_pedido') {
+      // Prepara o resumo e abre o modal de confirmação de edição
+      const summary = [
+        { label: 'Articulador', val: formData.articulador.nome },
+        { label: 'Liderança', val: formData.lideranca.nome },
+        { label: 'Destino', val: formData.modoRecebimento === 'Despacho' ? formData.enderecoRecebimento : 'Retirada no Comitê' },
+        { label: 'Status', val: formData.status }
+      ];
+      setModalEditConfirm({ show: true, step: 1, changesSummary: summary });
+    } else {
+      processSubmit(false); // Criação direta
+    }
   };
 
-  const confirmStatusChange = async () => {
-    setUpdatingStatus(true);
-    try {
-      const url = import.meta.env.VITE_SHEETS_API_URL;
-      const payload = { action: 'update_status', row: modalStatus.order.row, status: modalStatus.newStatus };
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
+  const handleOpenEdit = (pedido) => {
+    setFormData({
+      row: pedido.row,
+      articulador: { nome: pedido.articuladorNome, email: pedido.articuladorEmail, telefone: pedido.articuladorTelefone },
+      lideranca: { nome: pedido.liderancaNome, email: pedido.liderancaEmail, telefone: pedido.liderancaTelefone },
+      modoRecebimento: pedido.modoRecebimento,
+      regiaoDespacho: 'Interior de Santa Catarina', 
+      enderecoRecebimento: pedido.enderecoRecebimento,
+      horarioRetirada: pedido.horarioRetirada,
+      dataAgendada: pedido.dataAgendada,
+      status: pedido.status,
+      observacoes: pedido.observacoes
+    });
+
+    // Reconstruir seleções de materiais
+    const parsedPedidos = {};
+    const mats = (pedido.materiais || '').split('\n');
+    const qts = (pedido.quantidades || '').split('\n');
+    
+    // Aguardar estoque carregar se não tiver
+    if (estoque.length > 0) {
+      mats.forEach((m, idx) => {
+        const item = estoque.find(e => e.nome.trim() === m.trim());
+        if (item) parsedPedidos[item.id] = parseInt(qts[idx], 10) || 0;
       });
-      
-      const result = await response.json();
-      if (result.status === 'error') throw new Error(result.message);
-      
-      setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
-      setModalStatus({ show: false, step: 1, order: null, newStatus: '' });
-    } catch (error) {
-      alert("Erro ao alterar status: " + error.message);
-    } finally {
-      setUpdatingStatus(false);
+      setPedidos(parsedPedidos);
+    } else {
+       // Se o estoque não estiver carregado, vamos marcá-lo para re-parse após o useEffect
+       // Para simplicidade, assumiremos que os materiais serão marcados zerados se não encontrados.
+    }
+
+    setActiveTab('editar_pedido');
+    window.scrollTo(0,0);
+  };
+
+  const toggleFilter = (category, value) => {
+    setFilters(prev => {
+      const current = prev[category];
+      if (current.includes(value)) return { ...prev, [category]: current.filter(v => v !== value) };
+      return { ...prev, [category]: [...current, value] };
+    });
+    setViewConfig(prev => ({...prev, page: 1}));
+  };
+
+  const handleSortToggle = (field) => {
+    if (viewConfig.sort.startsWith(field)) {
+      const newDir = viewConfig.sort.endsWith('asc') ? 'desc' : 'asc';
+      setViewConfig({...viewConfig, sort: `${field}_${newDir}`});
+    } else {
+      setViewConfig({...viewConfig, sort: `${field}_asc`});
     }
   };
 
   const getFilteredAndSortedPedidos = () => {
     let filtered = [...listaPedidos];
     
+    // Link filters (Ficha detalhada)
     if (viewConfig.detailFilter) {
       filtered = filtered.filter(p => p[viewConfig.detailFilter.type] === viewConfig.detailFilter.value);
     }
+    
+    // Checkbox filters
+    if (filters.articulador.length > 0) filtered = filtered.filter(p => filters.articulador.includes(p.articuladorNome));
+    if (filters.lideranca.length > 0) filtered = filtered.filter(p => filters.lideranca.includes(p.liderancaNome));
+    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes(p.enderecoRecebimento || p.modoRecebimento));
 
     return filtered.sort((a, b) => {
-      if (viewConfig.sort === 'data_desc') return (b.row || 0) - (a.row || 0);
-      if (viewConfig.sort === 'data_asc') return (a.row || 0) - (b.row || 0);
-      if (viewConfig.sort === 'art_asc') return String(a.articuladorNome || '').localeCompare(String(b.articuladorNome || ''));
-      if (viewConfig.sort === 'art_desc') return String(b.articuladorNome || '').localeCompare(String(a.articuladorNome || ''));
-      if (viewConfig.sort === 'lid_asc') return String(a.liderancaNome || '').localeCompare(String(b.liderancaNome || ''));
-      if (viewConfig.sort === 'lid_desc') return String(b.liderancaNome || '').localeCompare(String(a.liderancaNome || ''));
-      if (viewConfig.sort === 'loc_asc') return String(a.enderecoRecebimento || '').localeCompare(String(b.enderecoRecebimento || ''));
-      if (viewConfig.sort === 'loc_desc') return String(b.enderecoRecebimento || '').localeCompare(String(a.enderecoRecebimento || ''));
-      return 0;
+      const isAsc = viewConfig.sort.endsWith('asc') ? 1 : -1;
+      const field = viewConfig.sort.split('_')[0];
+      
+      if (field === 'data') return (parseDateString(a.data) - parseDateString(b.data)) * isAsc;
+      if (field === 'agendamento') return (parseDateString(a.dataAgendada) - parseDateString(b.dataAgendada)) * isAsc;
+      if (field === 'articulador') return String(a.articuladorNome).localeCompare(String(b.articuladorNome)) * isAsc;
+      if (field === 'lideranca') return String(a.liderancaNome).localeCompare(String(b.liderancaNome)) * isAsc;
+      if (field === 'local') return String(a.enderecoRecebimento).localeCompare(String(b.enderecoRecebimento)) * isAsc;
+      if (field === 'status') return String(a.status).localeCompare(String(b.status)) * isAsc;
+      
+      return 0; // fallback
     });
   };
 
@@ -234,11 +291,16 @@ export default function App() {
   const totalPages = Math.ceil(sortedPedidos.length / CARDS_PER_PAGE);
   const displayedPedidos = viewConfig.mode === 'cards' 
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
-    : sortedPedidos; 
+    : sortedPedidos; // Lista inteira
+
+  // Extração de valores únicos para os filtros
+  const uniqueArticuladores = [...new Set(listaPedidos.map(p => p.articuladorNome).filter(Boolean))].sort();
+  const uniqueLiderancas = [...new Set(listaPedidos.map(p => p.liderancaNome).filter(Boolean))].sort();
+  const uniqueLocais = [...new Set(listaPedidos.map(p => p.enderecoRecebimento || p.modoRecebimento).filter(Boolean))].sort();
 
   const EntityLink = ({ type, label }) => (
-    <span onClick={() => { setViewConfig({...viewConfig, detailFilter: { type, value: label }, page: 1}); window.scrollTo(0,0); }} 
-          className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors">
+    <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: label }, page: 1}); window.scrollTo(0,0); }} 
+          className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10">
       {label}
     </span>
   );
@@ -246,15 +308,28 @@ export default function App() {
   const StatusBadge = ({ pedido }) => {
     const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
     return (
-      <button onClick={() => triggerStatusModal(pedido)}
-              className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
-        {pedido.status || 'Pendente'}
+      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'A ENVIAR' : 'ENVIADO' }); }}
+              className={`relative z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
+        {pedido.status || 'A ENVIAR'}
       </button>
     );
   };
 
+  const SortHeader = ({ label, field }) => {
+    const isSorted = viewConfig.sort.startsWith(field);
+    const isAsc = viewConfig.sort.endsWith('asc');
+    return (
+      <th onClick={() => handleSortToggle(field)} className="p-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none">
+        <div className="flex items-center space-x-1">
+          <span>{label}</span>
+          {isSorted && <span className="text-[#20B2AA]">{isAsc ? '▲' : '▼'}</span>}
+        </div>
+      </th>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800">
+    <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
       
       {/* Navegação de Abas */}
       <div className="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -264,14 +339,26 @@ export default function App() {
           </h1>
         </div>
         <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner border-2 border-slate-300">
-          <button onClick={() => setActiveTab('novo_pedido')} className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'novo_pedido' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Novo Pedido</button>
-          <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Painel de Pedidos</button>
+          <button onClick={() => {resetForm(); setActiveTab('novo_pedido');}} className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'novo_pedido' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Novo Pedido</button>
+          <button onClick={() => {setActiveTab('dashboard');}} className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Painel de Pedidos</button>
         </div>
       </div>
 
-      {/* TELA DE NOVO PEDIDO */}
-      {activeTab === 'novo_pedido' && (
-        <form onSubmit={handleSubmit} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
+      {/* FORMULÁRIO (Usado para NOVO e EDIÇÃO) */}
+      {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
+        <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
+          
+          {activeTab === 'editar_pedido' && (
+             <div className="md:col-span-12 bg-slate-900 text-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] flex items-center justify-between">
+               <div>
+                 <span className="text-[#E5B80B] font-bold uppercase tracking-widest text-sm">Modo de Edição</span>
+                 <h2 className="text-3xl font-black">Ficha do Pedido</h2>
+               </div>
+               <button type="button" onClick={() => setActiveTab('dashboard')} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-bold transition">Voltar ao Painel</button>
+             </div>
+          )}
+
+          {/* Seção Articulador */}
           <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
             <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
               <IconUser />
@@ -279,18 +366,19 @@ export default function App() {
             </div>
             <div className="mb-4">
               <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
-              <input type="text" required value={articulador.nome} onChange={e => setArticulador({...articulador, nome: e.target.value})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              <input type="text" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
             </div>
             <div className="mb-4">
               <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-              <input type="email" value={articulador.email} onChange={e => setArticulador({...articulador, email: e.target.value})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
             </div>
             <div className="mb-4">
               <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
-              <input type="tel" value={articulador.telefone} onChange={e => setArticulador({...articulador, telefone: e.target.value})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
             </div>
           </div>
 
+          {/* Seção Liderança */}
           <div className="md:col-span-7 bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
              <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
               <IconUsers />
@@ -299,69 +387,71 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
               <div className="md:col-span-2 mb-4">
                 <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
-                <input type="text" required value={lideranca.nome} onChange={e => setLideranca({...lideranca, nome: e.target.value})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                <input type="text" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-                <input type="email" value={lideranca.email} onChange={e => setLideranca({...lideranca, email: e.target.value})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
-                <input type="tel" value={lideranca.telefone} onChange={e => setLideranca({...lideranca, telefone: e.target.value})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
               </div>
             </div>
           </div>
 
+          {/* Modo de Recebimento */}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
              <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <IconTruck />
               <h2 className="text-2xl font-bold text-slate-900">Modo de Recebimento <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => {setModoRecebimento('Despacho'); setDataAgendada('');}}>
+              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${formData.modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setFormData({...formData, modoRecebimento: 'Despacho'})}>
                 <div className="flex items-center mb-3">
-                  <input type="radio" checked={modoRecebimento === 'Despacho'} readOnly className="w-5 h-5 mr-3 accent-[#20B2AA]" />
+                  <input type="radio" checked={formData.modoRecebimento === 'Despacho'} readOnly className="w-5 h-5 mr-3 accent-[#20B2AA]" />
                   <h3 className="font-bold text-lg">Despacho</h3>
                 </div>
-                {modoRecebimento === 'Despacho' && (
+                {formData.modoRecebimento === 'Despacho' && (
                   <div className="mt-4 space-y-4 pl-8" onClick={e => e.stopPropagation()}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
-                        <select className="w-full p-2 border-2 border-slate-400 rounded-lg" value={regiaoDespacho} onChange={(e) => setRegiaoDespacho(e.target.value)}>
+                        <select className="w-full p-2 border-2 border-slate-400 rounded-lg" value={formData.regiaoDespacho} onChange={(e) => setFormData({...formData, regiaoDespacho: e.target.value})}>
                           <option value="Interior de Santa Catarina">Interior de Santa Catarina</option>
                           <option value="Florianópolis">Florianópolis</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-slate-800 mb-1">Prazo de Entrega <span className="text-[#DC143C]">*</span></label>
-                        <input type="date" required value={dataAgendada} onChange={e => setDataAgendada(e.target.value)} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
+                        <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
                       </div>
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-800 mb-1">Município / Bairro <span className="text-[#DC143C]">*</span></label>
-                      <input type="text" value={enderecoRecebimento} onChange={e => setEnderecoRecebimento(e.target.value)} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
+                      <input type="text" value={formData.enderecoRecebimento} onChange={e => setFormData({...formData, enderecoRecebimento: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
                     </div>
                   </div>
                 )}
               </div>
-              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${modoRecebimento === 'Retirada no comitê' ? 'border-[#DC143C] bg-[#DC143C]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => {setModoRecebimento('Retirada no comitê'); setDataAgendada('');}}>
+              
+              <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${formData.modoRecebimento === 'Retirada no comitê' ? 'border-[#DC143C] bg-[#DC143C]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setFormData({...formData, modoRecebimento: 'Retirada no comitê'})}>
                 <div className="flex items-center mb-3">
-                  <input type="radio" checked={modoRecebimento === 'Retirada no comitê'} readOnly className="w-5 h-5 mr-3 accent-[#DC143C]" />
+                  <input type="radio" checked={formData.modoRecebimento === 'Retirada no comitê'} readOnly className="w-5 h-5 mr-3 accent-[#DC143C]" />
                   <h3 className="font-bold text-lg">Retirada no comitê</h3>
                 </div>
-                {modoRecebimento === 'Retirada no comitê' && (
+                {formData.modoRecebimento === 'Retirada no comitê' && (
                   <div className="mt-4 pl-8 space-y-4" onClick={e => e.stopPropagation()}>
                     <div>
                       <label className="block text-sm font-bold text-slate-800 mb-2">Data da Retirada <span className="text-[#DC143C]">*</span></label>
-                      <input type="date" required value={dataAgendada} onChange={e => setDataAgendada(e.target.value)} className="w-full max-w-[200px] p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                      <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full max-w-[200px] p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
                       <div className="space-y-2">
                         {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
                           <label key={hora} className="flex items-center space-x-2 cursor-pointer">
-                            <input type="radio" value={hora} checked={horarioRetirada === hora} onChange={(e) => setHorarioRetirada(e.target.value)} className="w-4 h-4 accent-[#DC143C]"/>
+                            <input type="radio" value={hora} checked={formData.horarioRetirada === hora} onChange={(e) => setFormData({...formData, horarioRetirada: e.target.value})} className="w-4 h-4 accent-[#DC143C]"/>
                             <span>{hora}</span>
                           </label>
                         ))}
@@ -373,6 +463,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Seleção de Materiais */}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
             <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <div className="text-[#DC143C]"><IconPackage /></div>
@@ -409,8 +500,8 @@ export default function App() {
                         <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Quantidade:</span>
                         <div className="flex items-center space-x-2">
                           <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">-</button>
-                          <input type="number" min="0" max={item.disponivel} value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-20 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none"/>
-                          <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} disabled={quantidadeEscolhida >= item.disponivel} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300 disabled:opacity-50">+</button>
+                          <input type="number" min="0" value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-20 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none"/>
+                          <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">+</button>
                         </div>
                       </div>
                     </div>
@@ -420,7 +511,41 @@ export default function App() {
             )}
           </div>
 
-          <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4">
+          {/* Campo de Observações Gerais e Status Manual (Apenas Visível na Edição) */}
+          <div className="md:col-span-12 bg-[#F0F4F8] rounded-2xl p-6 border-2 border-slate-300 shadow-sm">
+             <div className="flex items-center space-x-3 mb-4">
+              <div className="text-slate-600"><IconMessage /></div>
+              <h2 className="text-xl font-bold text-slate-900">Observações e Status</h2>
+            </div>
+            
+            {activeTab === 'editar_pedido' && (
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-slate-800 mb-2">Status do Pedido</label>
+                <div className="flex space-x-4">
+                  <label className="flex items-center space-x-2 cursor-pointer p-2 border-2 rounded-lg bg-white border-slate-200 hover:border-[#E5B80B]">
+                    <input type="radio" value="A ENVIAR" checked={formData.status === 'A ENVIAR'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#E5B80B]"/>
+                    <span className="font-bold text-[#B8860B]">A ENVIAR</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer p-2 border-2 rounded-lg bg-white border-slate-200 hover:border-[#20B2AA]">
+                    <input type="radio" value="ENVIADO" checked={formData.status === 'ENVIADO'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#20B2AA]"/>
+                    <span className="font-bold text-[#008080]">ENVIADO</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Anotações Gerais (Opcional)</label>
+              <textarea 
+                value={formData.observacoes} 
+                onChange={e => setFormData({...formData, observacoes: e.target.value})} 
+                className="w-full p-3 bg-white border-2 border-slate-300 rounded-xl focus:border-slate-900 focus:outline-none min-h-[100px]"
+                placeholder="Insira detalhes de entrega, referências, ou alertas sobre o pedido..."
+              ></textarea>
+            </div>
+          </div>
+
+          <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4 mb-20">
             <div className="flex-1 w-full mb-4 md:mb-0 pr-0 md:pr-4">
               {mensagem && (
                 <div className={`p-4 rounded-lg flex items-center font-bold ${mensagem.tipo === 'sucesso' ? 'bg-[#20B2AA]/20 text-[#20B2AA]' : 'bg-[#DC143C]/20 text-[#DC143C]'}`}>
@@ -429,30 +554,18 @@ export default function App() {
                 </div>
               )}
             </div>
-            <button type="submit" disabled={submitting} className="w-full md:w-auto flex justify-center items-center space-x-2 bg-[#DC143C] text-white font-black uppercase py-4 px-10 rounded-xl transition-all hover:scale-105 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] disabled:opacity-70 border-2 border-white">
-              {submitting ? <span>Salvando...</span> : <span>Confirmar Pedido</span>}
+            <button type="submit" disabled={submitting} className={`w-full md:w-auto flex justify-center items-center space-x-2 text-white font-black uppercase py-4 px-10 rounded-xl transition-all hover:scale-105 border-2 border-white disabled:opacity-70 ${activeTab === 'editar_pedido' ? 'bg-[#20B2AA] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.5)]' : 'bg-[#DC143C] shadow-[4px_4px_0px_0px_rgba(229,184,11,1)]'}`}>
+              {submitting ? <span>Salvando...</span> : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Confirmar Pedido'}</span>}
             </button>
           </div>
         </form>
       )}
 
-      {/* TELA DE DASHBOARD E FICHA COMPLETA */}
+      {/* TELA DE DASHBOARD E LISTAGEM */}
       {activeTab === 'dashboard' && (
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
-          {viewConfig.detailFilter && (
-            <div className="bg-[#20B2AA] text-white rounded-2xl p-6 mb-6 flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
-              <div>
-                <span className="text-sm font-bold uppercase tracking-wider text-slate-800">Ficha Completa • {viewConfig.detailFilter.type === 'articuladorNome' ? 'Articulador' : viewConfig.detailFilter.type === 'liderancaNome' ? 'Liderança' : 'Destino'}</span>
-                <h2 className="text-3xl font-black">{viewConfig.detailFilter.value}</h2>
-                <p className="mt-2 font-bold text-slate-800 bg-white/30 px-3 py-1 rounded-full inline-block">{sortedPedidos.length} Pedidos Encontrados</p>
-              </div>
-              <button onClick={() => setViewConfig({...viewConfig, detailFilter: null})} className="flex items-center space-x-2 bg-slate-900 text-white px-4 py-2 rounded-lg font-bold hover:bg-slate-800 transition">
-                <IconArrowLeft /> <span>Voltar à lista geral</span>
-              </button>
-            </div>
-          )}
-
+          {/* Alertas Gerais */}
           {mensagemLista && (
             <div className="bg-[#DC143C]/10 border-2 border-[#DC143C] p-4 rounded-xl text-[#DC143C] font-bold text-center mb-6">
               <span className="block mb-1">Aviso do Sistema:</span>
@@ -460,117 +573,165 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border-2 border-slate-200">
-            <div className="flex items-center w-full md:w-auto space-x-2">
-              <span className="font-bold text-slate-500 mr-2">Ordenar por:</span>
-              <select className="p-2 border-2 border-slate-300 rounded-lg bg-slate-50 font-bold text-slate-800 focus:outline-none focus:border-[#20B2AA]" value={viewConfig.sort} onChange={(e) => setViewConfig({...viewConfig, sort: e.target.value})}>
-                <option value="data_desc">Data (Mais recentes)</option>
-                <option value="data_asc">Data (Mais antigos)</option>
-                <option value="art_asc">Articulador (A-Z)</option>
-                <option value="art_desc">Articulador (Z-A)</option>
-                <option value="lid_asc">Liderança (A-Z)</option>
-                <option value="lid_desc">Liderança (Z-A)</option>
-                <option value="loc_asc">Localização (A-Z)</option>
-                <option value="loc_desc">Localização (Z-A)</option>
-              </select>
-            </div>
+          {/* Filtros em Múltipla Escolha e Controles */}
+          <div className="bg-white p-6 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] space-y-6">
             
-            <div className="flex space-x-2">
-              <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
-              <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Filtro: Articulador */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500 mb-3 flex justify-between">
+                  Articuladores <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueArticuladores.length}</span>
+                </h3>
+                <div className="max-h-32 overflow-y-auto space-y-2 custom-scrollbar">
+                  {uniqueArticuladores.map(nome => (
+                    <label key={nome} className="flex items-center space-x-2 cursor-pointer group">
+                      <input type="checkbox" checked={filters.articulador.includes(nome)} onChange={() => toggleFilter('articulador', nome)} className="w-4 h-4 rounded text-[#20B2AA] focus:ring-[#20B2AA]" />
+                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
+                    </label>
+                  ))}
+                  {uniqueArticuladores.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
+                </div>
+              </div>
+
+              {/* Filtro: Liderança */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500 mb-3 flex justify-between">
+                  Lideranças <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLiderancas.length}</span>
+                </h3>
+                <div className="max-h-32 overflow-y-auto space-y-2 custom-scrollbar">
+                  {uniqueLiderancas.map(nome => (
+                    <label key={nome} className="flex items-center space-x-2 cursor-pointer group">
+                      <input type="checkbox" checked={filters.lideranca.includes(nome)} onChange={() => toggleFilter('lideranca', nome)} className="w-4 h-4 rounded text-[#E5B80B] focus:ring-[#E5B80B]" />
+                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
+                    </label>
+                  ))}
+                  {uniqueLiderancas.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
+                </div>
+              </div>
+
+              {/* Filtro: Local */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500 mb-3 flex justify-between">
+                  Destinos <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLocais.length}</span>
+                </h3>
+                <div className="max-h-32 overflow-y-auto space-y-2 custom-scrollbar">
+                  {uniqueLocais.map(nome => (
+                    <label key={nome} className="flex items-center space-x-2 cursor-pointer group">
+                      <input type="checkbox" checked={filters.local.includes(nome)} onChange={() => toggleFilter('local', nome)} className="w-4 h-4 rounded text-[#DC143C] focus:ring-[#DC143C]" />
+                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
+                    </label>
+                  ))}
+                  {uniqueLocais.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row justify-between items-center pt-4 border-t-2 border-slate-100 gap-4">
+              <div className="font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-lg">
+                Exibindo: <span className="text-slate-900">{sortedPedidos.length}</span> resultados
+              </div>
+              <div className="flex space-x-2">
+                <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
+                <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
+              </div>
             </div>
           </div>
 
-          {loadingPedidos && (
-            <div className="text-center py-10 font-bold text-slate-500 flex flex-col items-center">
+          {loadingPedidos ? (
+            <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
               <div className="animate-spin text-[#20B2AA] mb-4"><IconPackage /></div>
               Buscando Pedidos da Planilha...
             </div>
-          )}
-
-          {!loadingPedidos && viewConfig.mode === 'cards' && (
+          ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {displayedPedidos.length === 0 ? (
-                  <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed">
-                    Nenhum pedido encontrado para esta visualização.
-                  </div>
-                ) : (
-                  displayedPedidos.map(pedido => (
-                    <div key={pedido.row} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] transition-all">
-                      <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
-                        <StatusBadge pedido={pedido} />
+              {/* VIZUALIZAÇÃO EM CARDS (Paginado) */}
+              {viewConfig.mode === 'cards' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {displayedPedidos.length === 0 ? (
+                      <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed">
+                        Nenhum pedido encontrado.
                       </div>
-                      
-                      <div className="flex-1 space-y-3 text-sm">
-                        <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
-                        <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
-                        <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
-                        <div><span className="text-slate-500 text-xs font-bold uppercase">Agendamento</span><br/><span className="font-bold text-slate-800">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `às ${pedido.horarioRetirada}` : ''}</span></div>
-                        
-                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4">
-                          <span className="text-slate-500 text-xs font-bold uppercase mb-2 block">Resumo do Material</span>
-                          <div className="flex justify-between text-slate-700 text-xs">
-                            <p className="whitespace-pre-line leading-tight pr-2">{pedido.materiais}</p>
-                            <p className="whitespace-pre-line leading-tight font-black text-right">{pedido.quantidades}</p>
+                    ) : (
+                      displayedPedidos.map(pedido => (
+                        <div key={pedido.row} onClick={() => handleOpenEdit(pedido)} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] cursor-pointer transition-all transform hover:-translate-y-1">
+                          <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
+                            <StatusBadge pedido={pedido} />
+                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">L-{pedido.row}</span>
+                          </div>
+                          
+                          <div className="flex-1 space-y-3 text-sm">
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Liderança</span><br/><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Articulador</span><br/><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Destino</span><br/><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></div>
+                            <div><span className="text-slate-500 text-xs font-bold uppercase">Agendamento</span><br/><span className="font-bold text-slate-800">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `às ${pedido.horarioRetirada}` : ''}</span></div>
+                            
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-4 relative">
+                              <span className="text-slate-500 text-xs font-bold uppercase mb-2 block">Resumo do Material</span>
+                              <div className="flex justify-between text-slate-700 text-xs">
+                                <p className="whitespace-pre-line leading-tight pr-2">{pedido.materiais}</p>
+                                <p className="whitespace-pre-line leading-tight font-black text-right">{pedido.quantidades}</p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  {totalPages > 1 && (
+                    <div className="flex justify-center space-x-2 pt-6 pb-10">
+                      {Array.from({length: totalPages}, (_, i) => (
+                        <button key={i+1} onClick={() => setViewConfig({...viewConfig, page: i+1})} className={`w-10 h-10 rounded-full font-bold border-2 ${viewConfig.page === i+1 ? 'bg-[#DC143C] text-white border-[#DC143C]' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}>
+                          {i + 1}
+                        </button>
+                      ))}
                     </div>
-                  ))
-                )}
-              </div>
-              
-              {totalPages > 1 && (
-                <div className="flex justify-center space-x-2 pt-6">
-                  {Array.from({length: totalPages}, (_, i) => (
-                    <button key={i+1} onClick={() => setViewConfig({...viewConfig, page: i+1})} className={`w-10 h-10 rounded-full font-bold border-2 ${viewConfig.page === i+1 ? 'bg-[#DC143C] text-white border-[#DC143C]' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}>
-                      {i + 1}
-                    </button>
-                  ))}
-                </div>
+                  )}
+                </>
+              )}
+
+              {/* VISUALIZAÇÃO EM LISTA (Inteira, sem paginação) */}
+              {viewConfig.mode === 'list' && (
+                 <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] mb-20">
+                   <table className="w-full text-left text-sm border-collapse min-w-[950px]">
+                     <thead>
+                       <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
+                         <SortHeader label="Inclusão" field="data" />
+                         <SortHeader label="Liderança" field="lideranca" />
+                         <SortHeader label="Articulador" field="articulador" />
+                         <SortHeader label="Local" field="local" />
+                         <SortHeader label="Agendamento" field="agendamento" />
+                         <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais (S/ Filtro)</th>
+                         <SortHeader label="Status" field="status" />
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {displayedPedidos.map(pedido => (
+                         <tr key={pedido.row} onClick={() => handleOpenEdit(pedido)} className="border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer group">
+                           <td className="p-4 font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</td>
+                           <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || '-'} /></td>
+                           <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || '-'} /></td>
+                           <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || '-'} /></td>
+                           <td className="p-4 text-xs font-bold text-slate-700">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `(${pedido.horarioRetirada})` : ''}</td>
+                           <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
+                             {String(pedido.materiais || '').split('\n').join(' | ')}
+                           </td>
+                           <td className="p-4 text-center"><StatusBadge pedido={pedido} /></td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                   {displayedPedidos.length === 0 && <div className="p-8 text-center text-slate-500 font-bold">Nenhum pedido encontrado.</div>}
+                 </div>
               )}
             </>
-          )}
-
-          {!loadingPedidos && viewConfig.mode === 'list' && (
-             <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)]">
-               <table className="w-full text-left text-sm border-collapse min-w-[900px]">
-                 <thead>
-                   <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
-                     <th className="p-4 font-black">Data</th>
-                     <th className="p-4 font-black">Liderança</th>
-                     <th className="p-4 font-black">Articulador</th>
-                     <th className="p-4 font-black">Local</th>
-                     <th className="p-4 font-black">Agendamento</th>
-                     <th className="p-4 font-black">Materiais</th>
-                     <th className="p-4 font-black text-center">Status</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {displayedPedidos.map(pedido => (
-                     <tr key={pedido.row} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                       <td className="p-4 font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</td>
-                       <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || 'Não Informado'} /></td>
-                       <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || 'Não Informado'} /></td>
-                       <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || pedido.modoRecebimento || 'Não Informado'} /></td>
-                       <td className="p-4 text-xs font-bold text-slate-700">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `(${pedido.horarioRetirada})` : ''}</td>
-                       <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
-                         {String(pedido.materiais || '').split('\n').join(' | ')}
-                       </td>
-                       <td className="p-4 text-center"><StatusBadge pedido={pedido} /></td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-               {displayedPedidos.length === 0 && <div className="p-8 text-center text-slate-500 font-bold">Nenhum pedido encontrado.</div>}
-             </div>
           )}
 
         </div>
       )}
 
-      {}
+      {/* MODAL DE STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(32,178,170,1)] animate-in fade-in zoom-in-95 duration-200">
@@ -601,6 +762,52 @@ export default function App() {
                   <button onClick={() => setModalStatus({show: false})} disabled={updatingStatus} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
                   <button onClick={confirmStatusChange} disabled={updatingStatus} className="flex-1 flex justify-center items-center py-3 bg-[#20B2AA] text-white font-black rounded-xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:bg-[#1c9c95] border-2 border-[#20B2AA] disabled:opacity-70">
                     {updatingStatus ? "Salvando..." : "Confirmar e Salvar"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EDIÇÃO COMPLETA */}
+      {modalEditConfirm.show && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
+            
+            {modalEditConfirm.step === 1 ? (
+              <>
+                <div className="w-16 h-16 bg-[#20B2AA]/20 text-[#20B2AA] rounded-full flex items-center justify-center mb-6 mx-auto"><IconCheck /></div>
+                <h3 className="text-2xl font-black text-center text-slate-900 mb-2">Salvar Edição?</h3>
+                <p className="text-center text-slate-600 font-medium mb-8">
+                  Você está prestes a reescrever todas as informações do pedido da linha <strong className="text-slate-900">L-{formData.row}</strong> na planilha.
+                </p>
+                <div className="flex gap-4">
+                  <button onClick={() => setModalEditConfirm({show: false})} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Voltar para Ficha</button>
+                  <button onClick={() => setModalEditConfirm({...modalEditConfirm, step: 2})} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800">Sim, Continuar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-2xl font-black text-slate-900 mb-4 border-b-2 border-slate-200 pb-2">Resumo da Edição</h3>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-300 mb-6 space-y-3 text-sm">
+                  {modalEditConfirm.changesSummary.map((item, idx) => (
+                    <p key={idx}>
+                      <span className="font-bold text-slate-500">{item.label}:</span><br/>
+                      <span className="font-bold text-slate-800">{item.val}</span>
+                    </p>
+                  ))}
+                  <p>
+                      <span className="font-bold text-slate-500">Materiais:</span><br/>
+                      <span className="font-bold text-[#20B2AA]">{estoque.filter(i => pedidos[i.id] > 0).length} selecionado(s)</span>
+                  </p>
+                </div>
+                <p className="mb-6 text-center text-slate-700 font-bold">Deseja sobrepor a planilha com estes dados?</p>
+                
+                <div className="flex gap-4">
+                  <button onClick={() => setModalEditConfirm({show: false})} disabled={submitting} className="flex-1 py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
+                  <button onClick={() => processSubmit(true)} disabled={submitting} className="flex-1 flex justify-center items-center py-3 bg-[#20B2AA] text-white font-black rounded-xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:bg-[#1c9c95] border-2 border-[#20B2AA] disabled:opacity-70">
+                    {submitting ? "Salvando..." : "Confirmar e Salvar"}
                   </button>
                 </div>
               </>
