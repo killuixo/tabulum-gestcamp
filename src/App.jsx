@@ -43,7 +43,8 @@ const initialFormState = {
 export default function App() {
   const [activeTab, setActiveTab] = useState('novo_pedido'); 
   const [viewConfig, setViewConfig] = useState({ mode: 'cards', sort: 'data_desc', page: 1, detailFilter: null });
-  const [estoqueViewConfig, setEstoqueViewConfig] = useState({ mode: 'list' });
+  // ALTERAÇÃO: Estoque abrindo em cards por padrão e com configurações de ordenação
+  const [estoqueViewConfig, setEstoqueViewConfig] = useState({ mode: 'cards', sortField: 'nome', sortDir: 'asc' });
   
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
@@ -304,6 +305,14 @@ export default function App() {
     }
   };
 
+  const handleEstoqueSortToggle = (field) => {
+    setEstoqueViewConfig(prev => ({
+      ...prev,
+      sortField: field,
+      sortDir: prev.sortField === field && prev.sortDir === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
   const parseDateString = (dStr) => {
     if (!dStr) return 0;
     if (dStr.includes('-')) return new Date(dStr).getTime();
@@ -361,8 +370,8 @@ export default function App() {
   let globalTotalSolicitado = 0;
 
   estoque.forEach(item => {
-    globalTotalAdquirido += item.totalAdquirido;
-    globalTotalDisponivel += item.disponivel;
+    globalTotalAdquirido += Number(item.totalAdquirido) || 0;
+    globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
   listaPedidos.forEach(pedido => {
@@ -379,6 +388,15 @@ export default function App() {
 
   const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0;
   
+  // ALTERAÇÃO: Filtro forte numérico para garantir a exibição apenas dos maiores de zero
+  const activeEstoque = [...estoque].filter(item => Number(item.totalAdquirido) > 0).sort((a, b) => {
+    const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
+    if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
+    if (estoqueViewConfig.sortField === 'totalAdquirido') return (Number(a.totalAdquirido) - Number(b.totalAdquirido)) * dir;
+    if (estoqueViewConfig.sortField === 'disponivel') return (Number(a.disponivel) - Number(b.disponivel)) * dir;
+    return 0;
+  });
+
   const totalSolicitadoEdit = estoque.reduce((acc, item) => acc + (pedidos[item.id] || 0), 0);
   const totalEnviadoEdit = estoque.reduce((acc, item) => acc + (enviados[item.id] || 0), 0);
   const percentualEnviadoEdit = totalSolicitadoEdit > 0 ? Math.round((totalEnviadoEdit / totalSolicitadoEdit) * 100) : 0;
@@ -417,10 +435,24 @@ export default function App() {
     );
   };
 
+  // Componente visual para ordenar tabela de estoque
+  const EstoqueSortHeader = ({ label, field, className = "" }) => {
+    const isSorted = estoqueViewConfig.sortField === field;
+    const isAsc = estoqueViewConfig.sortDir === 'asc';
+    return (
+      <th onClick={() => handleEstoqueSortToggle(field)} className={`p-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none ${className}`}>
+        <div className={`flex items-center space-x-1 ${className.includes('text-center') ? 'justify-center' : ''}`}>
+          <span>{label}</span>
+          {isSorted && <span className="text-[#20B2AA]">{isAsc ? '▲' : '▼'}</span>}
+        </div>
+      </th>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
       
-      {}
+      {/* Datalists */}
       <datalist id="list-articuladores">{uniqueArticuladores.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-liderancas">{uniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-locais">{uniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
@@ -449,7 +481,6 @@ export default function App() {
         </div>
       </div>
 
-      {}
       {/* FORMULÁRIO */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
@@ -506,7 +537,7 @@ export default function App() {
             </div>
           </div>
 
-          {}
+          {/* Modo de Recebimento */}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
              <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <IconTruck />
@@ -573,7 +604,7 @@ export default function App() {
             </div>
           </div>
 
-          {}
+          {/* Seleção de Materiais */}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
             <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <div className="text-[#DC143C]"><IconPackage /></div>
@@ -586,8 +617,7 @@ export default function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* FILTRO AQUI: Apenas itens com total adquirido > 0 */}
-                {estoque.filter(item => item.totalAdquirido > 0).map((item) => {
+                {activeEstoque.map((item) => {
                   const quantidadeEscolhida = pedidos[item.id] || 0;
                   const quantidadeEnviada = enviados[item.id] || 0;
 
@@ -595,7 +625,7 @@ export default function App() {
                     <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors">
                       <div>
                         <h3 className="font-bold text-slate-800 text-lg mb-1 leading-tight">{item.nome}</h3>
-                        {/* ALTERAÇÃO: Mostrando Adquirido e Saldo Atual */}
+                        {/* ALTERAÇÃO: Mantendo a visão do Adquirido e Em Estoque */}
                         <div className="mt-3 mb-3 flex justify-between text-xs font-bold border border-slate-200 bg-white px-3 py-1.5 rounded-lg shadow-sm">
                           <span className="text-slate-500 uppercase">Adq: <span className="text-slate-800 font-black text-sm">{item.totalAdquirido}</span></span>
                           <span className="text-[#20B2AA] uppercase border-l-2 border-slate-200 pl-3">Em Estoque: <span className="font-black text-sm">{item.disponivel}</span></span>
@@ -628,7 +658,6 @@ export default function App() {
             )}
           </div>
 
-          {}
           {/* Observações e Status (Apenas Visível na Edição) */}
           <div className="md:col-span-12 bg-[#F0F4F8] rounded-2xl p-6 border-2 border-slate-300 shadow-sm">
              <div className="flex items-center space-x-3 mb-4">
@@ -710,7 +739,6 @@ export default function App() {
         </form>
       )}
 
-      {}
       {/* DASHBOARD DE PEDIDOS */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -805,7 +833,6 @@ export default function App() {
             </div>
           </div>
 
-          {}
           {loadingPedidos ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
               <GradientSpinner className="w-12 h-12 mb-4" />
@@ -902,7 +929,6 @@ export default function App() {
         </div>
       )}
 
-      {}
       {/* ESTOQUE */}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
@@ -920,7 +946,7 @@ export default function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Comprado (Adquirido)</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Adquirido</p>
                 <p className="text-3xl font-black text-white">{globalTotalAdquirido}</p>
               </div>
               <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
@@ -935,7 +961,7 @@ export default function App() {
 
             <div>
               <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
-                <span>Pressão sobre Compras (Solicitado vs Comprado)</span>
+                <span>Pressão sobre o Estoque (Solicitado vs Adquirido)</span>
                 <span className={percentualGlobalEstoque > 100 ? 'text-[#DC143C]' : 'text-white'}>{percentualGlobalEstoque.toFixed(1)}%</span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative">
@@ -944,7 +970,7 @@ export default function App() {
                    <div className="absolute top-0 right-0 h-full bg-[#DC143C]/50 w-full animate-pulse"></div>
                 )}
               </div>
-              {percentualGlobalEstoque > 100 && <p className="text-xs text-[#DC143C] font-bold mt-2 text-right">Demanda ultrapassou as compras totais.</p>}
+              {percentualGlobalEstoque > 100 && <p className="text-xs text-[#DC143C] font-bold mt-2 text-right">Demanda ultrapassou o total adquirido.</p>}
             </div>
             
             <div className="mt-8 pt-6 border-t border-slate-700">
@@ -958,11 +984,10 @@ export default function App() {
           </div>
 
           <div className="flex justify-end gap-2 mb-4">
-             <button onClick={() => setEstoqueViewConfig({mode: 'list'})} className={`p-2 rounded-lg border-2 ${estoqueViewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconList /></button>
-             <button onClick={() => setEstoqueViewConfig({mode: 'cards'})} className={`p-2 rounded-lg border-2 ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
+             <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'list'})} className={`p-2 rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconList /></button>
+             <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'cards'})} className={`p-2 rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
           </div>
 
-          {}
           {loadingEstoque ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
                <GradientSpinner className="w-12 h-12 mb-4" />
@@ -973,48 +998,44 @@ export default function App() {
                <table className="w-full text-left text-sm border-collapse min-w-[900px]">
                  <thead>
                    <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
-                     <th className="p-4 font-black">Material</th>
-                     {/* ALTERAÇÃO: Novas colunas na tabela de Estoque */}
-                     <th className="p-4 font-black text-center border-x border-slate-200 bg-[#E5B80B]/10 text-[#B8860B]" title="Total Adquirido (Coluna K)">Saldo Adq.</th>
+                     <EstoqueSortHeader label="Material" field="nome" className="border-r border-slate-200" />
+                     <EstoqueSortHeader label="Saldo Adq." field="totalAdquirido" className="text-center border-r border-slate-200 bg-[#E5B80B]/10 text-[#B8860B]" />
                      <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">Total Pedidos</th>
                      <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">% (Ped / Adq)</th>
-                     {/* FILTRO DE LEVAS NA TABELA: Apenas mostra a coluna Leva se existir algum valor > 0 nela */}
                      {(() => {
                        const levasAtivasGlobais = levasHeaders.filter(l => 
-                         estoque.some(item => item.totalAdquirido > 0 && (item.levas[l] || 0) > 0)
+                         activeEstoque.some(item => (item.levas[l] || 0) > 0)
                        );
                        return levasAtivasGlobais.map(l => (
                          <th key={l} className="p-4 font-bold text-center border-r border-slate-200 text-slate-500">{l}</th>
                        ));
                      })()}
-                     <th className="p-4 font-black text-center bg-[#20B2AA]/10 text-[#008080]" title="Saldo Atual (Coluna F)">Saldo Atual</th>
+                     <EstoqueSortHeader label="Saldo Atual" field="disponivel" className="text-center bg-[#20B2AA]/10 text-[#008080]" />
                    </tr>
                  </thead>
                  <tbody>
-                   {/* FILTRO AQUI: Apenas itens com total adquirido > 0 */}
-                   {estoque.filter(item => item.totalAdquirido > 0).map(item => {
+                   {activeEstoque.map(item => {
                      const demandaIt = aggregatedRequests[item.nome] || 0;
-                     const pctIt = item.totalAdquirido > 0 ? (demandaIt / item.totalAdquirido) * 100 : 0;
+                     const pctDemanda = Number(item.totalAdquirido) > 0 ? (demandaIt / Number(item.totalAdquirido)) * 100 : 0;
+                     const pctDisponivel = Number(item.totalAdquirido) > 0 ? (Number(item.disponivel) / Number(item.totalAdquirido)) * 100 : 0;
                      
-                     // Filtra as levas ativas novamente para renderizar as células corretamente em sintonia com o thead
+                     // Definindo a cor com base no % de disponível (escalando usando as 3 cores)
+                     const textColorClass = pctDisponivel > 50 ? 'text-[#20B2AA]' : pctDisponivel >= 20 ? 'text-[#E5B80B]' : 'text-[#DC143C]';
+                     
                      const levasAtivasGlobais = levasHeaders.filter(l => 
-                       estoque.some(it => it.totalAdquirido > 0 && (it.levas[l] || 0) > 0)
+                       activeEstoque.some(it => (it.levas[l] || 0) > 0)
                      );
 
                      return (
                        <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50">
-                         <td className="p-4">
+                         <td className="p-4 border-r border-slate-100">
                            <p className="font-bold text-slate-800">{item.nome}</p>
-                           <div className="w-24 bg-slate-200 h-1.5 rounded-full mt-1 overflow-hidden">
-                             <div className={`h-1.5 rounded-full ${pctIt > 100 ? 'bg-[#DC143C]' : 'bg-[#E5B80B]'}`} style={{ width: `${Math.min(pctIt, 100)}%` }}></div>
-                           </div>
                          </td>
-                         <td className="p-4 text-center font-black text-slate-800 border-x border-slate-100 bg-slate-50">{item.totalAdquirido}</td>
+                         <td className="p-4 text-center font-black text-slate-800 border-r border-slate-100 bg-slate-50">{item.totalAdquirido}</td>
                          <td className="p-4 text-center font-bold text-slate-700 border-r border-slate-100">{demandaIt}</td>
                          <td className="p-4 text-center font-bold border-r border-slate-100">
-                           <span className={pctIt > 100 ? 'text-[#DC143C]' : 'text-slate-600'}>{pctIt.toFixed(1)}%</span>
+                           <span className={pctDemanda > 100 ? 'text-[#DC143C]' : 'text-slate-600'}>{pctDemanda.toFixed(1)}%</span>
                          </td>
-                         {/* Células das levas com valor ou traço '-' */}
                          {levasAtivasGlobais.map(l => {
                            const val = item.levas[l] || 0;
                            return (
@@ -1023,7 +1044,10 @@ export default function App() {
                              </td>
                            );
                          })}
-                         <td className="p-4 text-center font-black text-[#20B2AA] bg-[#20B2AA]/5">{item.disponivel}</td>
+                         <td className={`p-4 text-center font-black bg-slate-50 ${textColorClass}`}>
+                           {item.disponivel}
+                           <span className="text-[10px] ml-1 opacity-70 block font-bold">({pctDisponivel.toFixed(0)}% Disp.)</span>
+                         </td>
                        </tr>
                      );
                    })}
@@ -1032,9 +1056,11 @@ export default function App() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-               {/* FILTRO AQUI: Apenas itens com total adquirido > 0 */}
-               {estoque.filter(item => item.totalAdquirido > 0).map(item => {
-                 const demandaIt = aggregatedRequests[item.nome] || 0;
+               {activeEstoque.map(item => {
+                 const pctDisponivel = Number(item.totalAdquirido) > 0 ? (Number(item.disponivel) / Number(item.totalAdquirido)) * 100 : 0;
+                 // Definindo a cor com base no % de disponível (escalando usando as 3 cores)
+                 const textColorClass = pctDisponivel > 50 ? 'text-[#20B2AA]' : pctDisponivel >= 20 ? 'text-[#E5B80B]' : 'text-[#DC143C]';
+
                  return (
                    <div key={item.id} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] flex flex-col justify-between">
                      <div>
@@ -1046,7 +1072,10 @@ export default function App() {
                          </div>
                          <div>
                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Atual</p>
-                           <p className="text-xl font-black text-[#20B2AA]">{item.disponivel}</p>
+                           <p className={`text-xl font-black flex items-baseline ${textColorClass}`}>
+                              {item.disponivel}
+                              <span className="text-[10px] ml-1 font-bold opacity-70">({pctDisponivel.toFixed(0)}%)</span>
+                           </p>
                          </div>
                        </div>
                      </div>
@@ -1054,13 +1083,10 @@ export default function App() {
                        <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas (Levas ativas)</p>
                        <div className="space-y-1">
                          {(() => {
-                           // FILTRO DE LEVAS NOS CARDS: Apenas levas do ITEM ATUAL com valor > 0
                            const levasAtivasDoItem = levasHeaders.filter(l => (item.levas[l] || 0) > 0);
-                           
                            if (levasAtivasDoItem.length === 0) {
                              return <p className="text-xs text-slate-400 italic">Nenhuma leva registrada para este item.</p>;
                            }
-                           
                            return levasAtivasDoItem.map(l => (
                              <div key={l} className="flex justify-between text-xs">
                                <span className="text-slate-600 truncate">{l}</span>
@@ -1078,7 +1104,6 @@ export default function App() {
         </div>
       )}
 
-      {}
       {/* MODAL DE STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -1191,7 +1216,7 @@ export default function App() {
                   ))}
                   <div className="flex justify-between pt-1">
                       <span className="font-bold text-slate-500">Materiais:</span>
-                      <span className="font-black text-[#DC143C]">{estoque.filter(i => pedidos[i.id] > 0).length} selecionado(s)</span>
+                      <span className="font-black text-[#DC143C]">{activeEstoque.filter(i => pedidos[i.id] > 0).length} selecionado(s)</span>
                   </div>
                 </div>
 
