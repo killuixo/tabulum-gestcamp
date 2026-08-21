@@ -420,7 +420,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
       
-      {/* Datalists */}
+      {}
       <datalist id="list-articuladores">{uniqueArticuladores.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-liderancas">{uniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-locais">{uniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
@@ -449,6 +449,7 @@ export default function App() {
         </div>
       </div>
 
+      {}
       {/* FORMULÁRIO */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
@@ -505,7 +506,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Modo de Recebimento */}
+          {}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
              <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <IconTruck />
@@ -572,7 +573,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Seleção de Materiais */}
+          {}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
             <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <div className="text-[#DC143C]"><IconPackage /></div>
@@ -585,17 +586,19 @@ export default function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {estoque.map((item) => {
+                {/* FILTRO AQUI: Apenas itens com total adquirido > 0 */}
+                {estoque.filter(item => item.totalAdquirido > 0).map((item) => {
                   const quantidadeEscolhida = pedidos[item.id] || 0;
                   const quantidadeEnviada = enviados[item.id] || 0;
-                  const infoEstoque = `Total Adquirido: ${item.totalAdquirido}`;
 
                   return (
                     <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors">
                       <div>
                         <h3 className="font-bold text-slate-800 text-lg mb-1 leading-tight">{item.nome}</h3>
-                        <div className="mt-3 mb-3 flex justify-between text-xs font-bold text-slate-500 bg-white px-2 py-1 rounded">
-                          <span>{infoEstoque} un.</span>
+                        {/* ALTERAÇÃO: Mostrando Adquirido e Saldo Atual */}
+                        <div className="mt-3 mb-3 flex justify-between text-xs font-bold border border-slate-200 bg-white px-3 py-1.5 rounded-lg shadow-sm">
+                          <span className="text-slate-500 uppercase">Adq: <span className="text-slate-800 font-black text-sm">{item.totalAdquirido}</span></span>
+                          <span className="text-[#20B2AA] uppercase border-l-2 border-slate-200 pl-3">Em Estoque: <span className="font-black text-sm">{item.disponivel}</span></span>
                         </div>
                       </div>
                       
@@ -625,6 +628,7 @@ export default function App() {
             )}
           </div>
 
+          {}
           {/* Observações e Status (Apenas Visível na Edição) */}
           <div className="md:col-span-12 bg-[#F0F4F8] rounded-2xl p-6 border-2 border-slate-300 shadow-sm">
              <div className="flex items-center space-x-3 mb-4">
@@ -706,6 +710,7 @@ export default function App() {
         </form>
       )}
 
+      {}
       {/* DASHBOARD DE PEDIDOS */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -800,6 +805,7 @@ export default function App() {
             </div>
           </div>
 
+          {}
           {loadingPedidos ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
               <GradientSpinner className="w-12 h-12 mb-4" />
@@ -896,6 +902,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       {/* ESTOQUE */}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
@@ -955,6 +962,7 @@ export default function App() {
              <button onClick={() => setEstoqueViewConfig({mode: 'cards'})} className={`p-2 rounded-lg border-2 ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
           </div>
 
+          {}
           {loadingEstoque ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
                <GradientSpinner className="w-12 h-12 mb-4" />
@@ -962,34 +970,59 @@ export default function App() {
             </div>
           ) : estoqueViewConfig.mode === 'list' ? (
             <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)]">
-               <table className="w-full text-left text-sm border-collapse min-w-[800px]">
+               <table className="w-full text-left text-sm border-collapse min-w-[900px]">
                  <thead>
                    <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
                      <th className="p-4 font-black">Material</th>
-                     <th className="p-4 font-black text-center border-x border-slate-200 bg-[#E5B80B]/10 text-[#B8860B]">Total Adquirido</th>
-                     {levasHeaders.map(l => (
-                       <th key={l} className="p-4 font-bold text-center border-r border-slate-200 text-slate-500">{l}</th>
-                     ))}
-                     <th className="p-4 font-black text-center bg-[#20B2AA]/10 text-[#008080]">Saldo Atual</th>
+                     {/* ALTERAÇÃO: Novas colunas na tabela de Estoque */}
+                     <th className="p-4 font-black text-center border-x border-slate-200 bg-[#E5B80B]/10 text-[#B8860B]" title="Total Adquirido (Coluna K)">Saldo Adq.</th>
+                     <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">Total Pedidos</th>
+                     <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">% (Ped / Adq)</th>
+                     {/* FILTRO DE LEVAS NA TABELA: Apenas mostra a coluna Leva se existir algum valor > 0 nela */}
+                     {(() => {
+                       const levasAtivasGlobais = levasHeaders.filter(l => 
+                         estoque.some(item => item.totalAdquirido > 0 && (item.levas[l] || 0) > 0)
+                       );
+                       return levasAtivasGlobais.map(l => (
+                         <th key={l} className="p-4 font-bold text-center border-r border-slate-200 text-slate-500">{l}</th>
+                       ));
+                     })()}
+                     <th className="p-4 font-black text-center bg-[#20B2AA]/10 text-[#008080]" title="Saldo Atual (Coluna F)">Saldo Atual</th>
                    </tr>
                  </thead>
                  <tbody>
-                   {estoque.map(item => {
+                   {/* FILTRO AQUI: Apenas itens com total adquirido > 0 */}
+                   {estoque.filter(item => item.totalAdquirido > 0).map(item => {
                      const demandaIt = aggregatedRequests[item.nome] || 0;
                      const pctIt = item.totalAdquirido > 0 ? (demandaIt / item.totalAdquirido) * 100 : 0;
+                     
+                     // Filtra as levas ativas novamente para renderizar as células corretamente em sintonia com o thead
+                     const levasAtivasGlobais = levasHeaders.filter(l => 
+                       estoque.some(it => it.totalAdquirido > 0 && (it.levas[l] || 0) > 0)
+                     );
+
                      return (
                        <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50">
                          <td className="p-4">
                            <p className="font-bold text-slate-800">{item.nome}</p>
-                           <p className="text-xs text-slate-500 mt-1">Demanda: {demandaIt} un. ({pctIt.toFixed(0)}%)</p>
                            <div className="w-24 bg-slate-200 h-1.5 rounded-full mt-1 overflow-hidden">
                              <div className={`h-1.5 rounded-full ${pctIt > 100 ? 'bg-[#DC143C]' : 'bg-[#E5B80B]'}`} style={{ width: `${Math.min(pctIt, 100)}%` }}></div>
                            </div>
                          </td>
                          <td className="p-4 text-center font-black text-slate-800 border-x border-slate-100 bg-slate-50">{item.totalAdquirido}</td>
-                         {levasHeaders.map(l => (
-                           <td key={l} className="p-4 text-center text-slate-600 font-medium border-r border-slate-100">{item.levas[l] || '-'}</td>
-                         ))}
+                         <td className="p-4 text-center font-bold text-slate-700 border-r border-slate-100">{demandaIt}</td>
+                         <td className="p-4 text-center font-bold border-r border-slate-100">
+                           <span className={pctIt > 100 ? 'text-[#DC143C]' : 'text-slate-600'}>{pctIt.toFixed(1)}%</span>
+                         </td>
+                         {/* Células das levas com valor ou traço '-' */}
+                         {levasAtivasGlobais.map(l => {
+                           const val = item.levas[l] || 0;
+                           return (
+                             <td key={l} className="p-4 text-center text-slate-600 font-medium border-r border-slate-100">
+                               {val > 0 ? val : '-'}
+                             </td>
+                           );
+                         })}
                          <td className="p-4 text-center font-black text-[#20B2AA] bg-[#20B2AA]/5">{item.disponivel}</td>
                        </tr>
                      );
@@ -999,30 +1032,42 @@ export default function App() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-               {estoque.map(item => {
+               {/* FILTRO AQUI: Apenas itens com total adquirido > 0 */}
+               {estoque.filter(item => item.totalAdquirido > 0).map(item => {
                  const demandaIt = aggregatedRequests[item.nome] || 0;
                  return (
-                   <div key={item.id} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(20,184,166,1)]">
-                     <h3 className="font-bold text-slate-800 text-lg leading-tight mb-4 pb-3 border-b border-slate-200">{item.nome}</h3>
-                     <div className="grid grid-cols-2 gap-4 mb-4">
-                       <div>
-                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Adquirido</p>
-                         <p className="text-xl font-black text-slate-800">{item.totalAdquirido}</p>
-                       </div>
-                       <div>
-                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Atual</p>
-                         <p className="text-xl font-black text-[#20B2AA]">{item.disponivel}</p>
+                   <div key={item.id} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] flex flex-col justify-between">
+                     <div>
+                       <h3 className="font-bold text-slate-800 text-lg leading-tight mb-4 pb-3 border-b border-slate-200">{item.nome}</h3>
+                       <div className="grid grid-cols-2 gap-4 mb-4">
+                         <div>
+                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Adquirido</p>
+                           <p className="text-xl font-black text-slate-800">{item.totalAdquirido}</p>
+                         </div>
+                         <div>
+                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Atual</p>
+                           <p className="text-xl font-black text-[#20B2AA]">{item.disponivel}</p>
+                         </div>
                        </div>
                      </div>
-                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas (Levas)</p>
+                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 mt-auto">
+                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas (Levas ativas)</p>
                        <div className="space-y-1">
-                         {levasHeaders.length === 0 ? <p className="text-xs text-slate-400 italic">Nenhuma leva inserida.</p> : levasHeaders.map(l => (
-                           <div key={l} className="flex justify-between text-xs">
-                             <span className="text-slate-600 truncate">{l}</span>
-                             <span className="font-bold text-slate-800">{item.levas[l] || 0}</span>
-                           </div>
-                         ))}
+                         {(() => {
+                           // FILTRO DE LEVAS NOS CARDS: Apenas levas do ITEM ATUAL com valor > 0
+                           const levasAtivasDoItem = levasHeaders.filter(l => (item.levas[l] || 0) > 0);
+                           
+                           if (levasAtivasDoItem.length === 0) {
+                             return <p className="text-xs text-slate-400 italic">Nenhuma leva registrada para este item.</p>;
+                           }
+                           
+                           return levasAtivasDoItem.map(l => (
+                             <div key={l} className="flex justify-between text-xs">
+                               <span className="text-slate-600 truncate">{l}</span>
+                               <span className="font-bold text-slate-800">{item.levas[l]}</span>
+                             </div>
+                           ));
+                         })()}
                        </div>
                      </div>
                    </div>
@@ -1033,6 +1078,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       {/* MODAL DE STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
