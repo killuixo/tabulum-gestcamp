@@ -33,17 +33,25 @@ const initialFormState = {
   lideranca: { nome: '', email: '', telefone: '' },
   modoRecebimento: '',
   regiaoDespacho: 'Interior de Santa Catarina',
-  enderecoRecebimento: '',
+  municipio: '', // NOVO: Separado para fins de filtro
+  enderecoCompleto: '', // NOVO: Separado para dados extras
   horarioRetirada: '',
   dataAgendada: '',
-  status: 'Pendente',
+  status: 'PENDENTE', // MUDANÇA: 'PENDENTE' padronizado
   observacoes: ''
+};
+
+// UTILITÁRIO: Extrair município para filtros
+const getMunicipioString = (str) => {
+  if (!str) return '';
+  if (str.includes(' - ')) return str.split(' - ')[0].trim();
+  return str.trim();
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('novo_pedido'); 
   const [viewConfig, setViewConfig] = useState({ mode: 'cards', sort: 'data_desc', page: 1, detailFilter: null });
-  // ALTERAÇÃO: Estoque abrindo em cards por padrão e com configurações de ordenação
+  // MUDANÇA: Estoque em cards por padrão
   const [estoqueViewConfig, setEstoqueViewConfig] = useState({ mode: 'cards', sortField: 'nome', sortDir: 'asc' });
   
   const [formData, setFormData] = useState(initialFormState);
@@ -139,6 +147,9 @@ export default function App() {
       enviado: enviados[i.id] || 0
     }));
 
+    // Formata o endereço unindo o município (obrigatório) e o complemento (opcional)
+    const enderecoFormatado = formData.municipio.trim() + (formData.enderecoCompleto.trim() ? ` - ${formData.enderecoCompleto.trim()}` : '');
+
     const payload = {
       action: isEditMode ? 'edit_order' : 'new_order',
       row: formData.row,
@@ -146,7 +157,7 @@ export default function App() {
       lideranca: formData.lideranca, 
       modoRecebimento: formData.modoRecebimento,
       regiaoDespacho: formData.modoRecebimento === 'Despacho' ? formData.regiaoDespacho : '',
-      enderecoRecebimento: formData.enderecoRecebimento,
+      enderecoRecebimento: enderecoFormatado,
       horarioRetirada: formData.modoRecebimento === 'Retirada no comitê' ? formData.horarioRetirada : '',
       dataAgendada: formData.dataAgendada,
       status: formData.status,
@@ -184,7 +195,7 @@ export default function App() {
     
     if (formData.modoRecebimento === 'Despacho') {
       if (!formData.dataAgendada) return setMensagem({ tipo: 'erro', texto: 'O prazo de entrega é obrigatório.' });
-      if (!formData.enderecoRecebimento.trim()) return setMensagem({ tipo: 'erro', texto: 'O endereço é obrigatório.' });
+      if (!formData.municipio.trim()) return setMensagem({ tipo: 'erro', texto: 'O Município é obrigatório.' });
     }
     
     if (formData.modoRecebimento === 'Retirada no comitê') {
@@ -197,7 +208,7 @@ export default function App() {
     const summary = [
       { label: 'Articulador', val: formData.articulador.nome },
       { label: 'Liderança', val: formData.lideranca.nome },
-      { label: 'Destino', val: formData.modoRecebimento === 'Despacho' ? formData.enderecoRecebimento : (formData.enderecoRecebimento || 'Retirada no Comitê') },
+      { label: 'Destino', val: formData.municipio },
       { label: 'Agendamento', val: formData.dataAgendada ? formatarDataBR(formData.dataAgendada) : '-' },
       { label: 'Status', val: formData.status }
     ];
@@ -209,18 +220,23 @@ export default function App() {
     }
   };
 
-  const handleOpenView = (pedido) => {
-    setModalViewOrder({ show: true, order: pedido });
-  };
-
   const handleOpenEdit = (pedido) => {
+    let mun = pedido.enderecoRecebimento || '';
+    let end = '';
+    if (mun.includes(' - ')) {
+      const parts = mun.split(' - ');
+      mun = parts[0];
+      end = parts.slice(1).join(' - ');
+    }
+
     setFormData({
       row: pedido.row,
       articulador: { nome: pedido.articuladorNome, email: pedido.articuladorEmail, telefone: pedido.articuladorTelefone },
       lideranca: { nome: pedido.liderancaNome, email: pedido.liderancaEmail, telefone: pedido.liderancaTelefone },
       modoRecebimento: pedido.modoRecebimento,
       regiaoDespacho: 'Interior de Santa Catarina', 
-      enderecoRecebimento: pedido.enderecoRecebimento,
+      municipio: mun,
+      enderecoCompleto: end,
       horarioRetirada: pedido.horarioRetirada,
       dataAgendada: pedido.dataAgendada,
       status: pedido.status,
@@ -334,11 +350,14 @@ export default function App() {
     let filtered = [...listaPedidos];
     
     if (viewConfig.detailFilter) {
-      filtered = filtered.filter(p => (p[viewConfig.detailFilter.type] || '').trim() === viewConfig.detailFilter.value);
+      filtered = filtered.filter(p => {
+        const val = viewConfig.detailFilter.type === 'enderecoRecebimento' ? getMunicipioString(p.enderecoRecebimento) : p[viewConfig.detailFilter.type];
+        return (val || '').trim() === viewConfig.detailFilter.value;
+      });
     }
     if (filters.articulador.length > 0) filtered = filtered.filter(p => filters.articulador.includes((p.articuladorNome || '').trim()));
     if (filters.lideranca.length > 0) filtered = filtered.filter(p => filters.lideranca.includes((p.liderancaNome || '').trim()));
-    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes((p.enderecoRecebimento || p.modoRecebimento || '').trim()));
+    if (filters.local.length > 0) filtered = filtered.filter(p => filters.local.includes(getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)));
 
     return filtered.sort((a, b) => {
       const isAsc = viewConfig.sort.endsWith('asc') ? 1 : -1;
@@ -347,7 +366,7 @@ export default function App() {
       if (field === 'agendamento') return (parseDateString(a.dataAgendada) - parseDateString(b.dataAgendada)) * isAsc;
       if (field === 'articulador') return String(a.articuladorNome).localeCompare(String(b.articuladorNome)) * isAsc;
       if (field === 'lideranca') return String(a.liderancaNome).localeCompare(String(b.liderancaNome)) * isAsc;
-      if (field === 'local') return String(a.enderecoRecebimento || a.modoRecebimento).localeCompare(String(b.enderecoRecebimento || b.modoRecebimento)) * isAsc;
+      if (field === 'local') return String(getMunicipioString(a.enderecoRecebimento || a.modoRecebimento)).localeCompare(String(getMunicipioString(b.enderecoRecebimento || b.modoRecebimento))) * isAsc;
       if (field === 'status') return String(a.status).localeCompare(String(b.status)) * isAsc;
       return 0;
     });
@@ -362,7 +381,8 @@ export default function App() {
 
   const uniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
   const uniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
-  const uniqueLocais = [...new Set(listaPedidos.map(p => (p.enderecoRecebimento || p.modoRecebimento || '').trim()).filter(Boolean))].sort();
+  // USA O EXTRATOR DE MUNICÍPIO PARA A LISTA
+  const uniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
 
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
@@ -388,7 +408,6 @@ export default function App() {
 
   const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0;
   
-  // ALTERAÇÃO: Filtro forte numérico para garantir a exibição apenas dos maiores de zero
   const activeEstoque = [...estoque].filter(item => Number(item.totalAdquirido) > 0).sort((a, b) => {
     const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
     if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
@@ -402,12 +421,18 @@ export default function App() {
   const percentualEnviadoEdit = totalSolicitadoEdit > 0 ? Math.round((totalEnviadoEdit / totalSolicitadoEdit) * 100) : 0;
 
   const EntityLink = ({ type, label }) => {
-    const trimmedLabel = (label || '').trim();
-    if (!trimmedLabel || trimmedLabel === 'Não Informado') return <span>{label || 'Não Informado'}</span>;
+    const val = type === 'enderecoRecebimento' ? getMunicipioString(label) : label;
+    const trimmedLabel = (val || '').trim();
+    if (!trimmedLabel || trimmedLabel === 'Não Informado') return <span>{val || 'Não Informado'}</span>;
     return (
       <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: trimmedLabel }, page: 1}); window.scrollTo(0,0); }} 
             className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10">
-        {trimmedLabel}
+        {type === 'enderecoRecebimento' ? (
+           <span className="flex flex-col">
+             <span className="text-sm font-black">{trimmedLabel}</span>
+             {label.includes(' - ') && <span className="text-xs text-slate-500 font-normal leading-tight mt-1">{label.split(' - ').slice(1).join(' - ')}</span>}
+           </span>
+        ) : trimmedLabel}
       </span>
     );
   };
@@ -415,9 +440,9 @@ export default function App() {
   const StatusBadge = ({ pedido }) => {
     const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
     return (
-      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'Pendente' : 'ENVIADO' }); }}
+      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'PENDENTE' : 'ENVIADO' }); }}
               className={`relative z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
-        {pedido.status || 'Pendente'}
+        {pedido.status || 'PENDENTE'}
       </button>
     );
   };
@@ -435,7 +460,6 @@ export default function App() {
     );
   };
 
-  // Componente visual para ordenar tabela de estoque
   const EstoqueSortHeader = ({ label, field, className = "" }) => {
     const isSorted = estoqueViewConfig.sortField === field;
     const isAsc = estoqueViewConfig.sortDir === 'asc';
@@ -564,9 +588,15 @@ export default function App() {
                         <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-800 mb-1">Município / Bairro <span className="text-[#DC143C]">*</span></label>
-                      <input type="text" list="list-locais" value={formData.enderecoRecebimento} onChange={e => setFormData({...formData, enderecoRecebimento: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Município de Destino <span className="text-[#DC143C]">*</span></label>
+                        <input type="text" list="list-locais" required value={formData.municipio} onChange={e => setFormData({...formData, municipio: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" placeholder="Ex: Florianópolis" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Endereço Completo (Opcional)</label>
+                        <input type="text" value={formData.enderecoCompleto} onChange={e => setFormData({...formData, enderecoCompleto: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#20B2AA] focus:outline-none" placeholder="Ex: Rua João Costa, 123 - Centro" />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -594,9 +624,11 @@ export default function App() {
                         ))}
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-800 mb-1">Município / Bairro de Destino (Opcional)</label>
-                      <input type="text" list="list-locais" value={formData.enderecoRecebimento} onChange={e => setFormData({...formData, enderecoRecebimento: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Município de Destino (Opcional)</label>
+                        <input type="text" list="list-locais" value={formData.municipio} onChange={e => setFormData({...formData, municipio: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -625,7 +657,6 @@ export default function App() {
                     <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors">
                       <div>
                         <h3 className="font-bold text-slate-800 text-lg mb-1 leading-tight">{item.nome}</h3>
-                        {/* ALTERAÇÃO: Mantendo a visão do Adquirido e Em Estoque */}
                         <div className="mt-3 mb-3 flex justify-between text-xs font-bold border border-slate-200 bg-white px-3 py-1.5 rounded-lg shadow-sm">
                           <span className="text-slate-500 uppercase">Adq: <span className="text-slate-800 font-black text-sm">{item.totalAdquirido}</span></span>
                           <span className="text-[#20B2AA] uppercase border-l-2 border-slate-200 pl-3">Em Estoque: <span className="font-black text-sm">{item.disponivel}</span></span>
@@ -670,8 +701,8 @@ export default function App() {
                 <label className="block text-sm font-bold text-slate-800 mb-2">Status do Pedido</label>
                 <div className="flex space-x-4">
                   <label className="flex items-center space-x-2 cursor-pointer p-2 border-2 rounded-lg bg-white border-slate-200 hover:border-[#E5B80B]">
-                    <input type="radio" value="Pendente" checked={formData.status === 'Pendente'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#E5B80B]"/>
-                    <span className="font-bold text-[#B8860B]">Pendente</span>
+                    <input type="radio" value="PENDENTE" checked={formData.status === 'PENDENTE'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#E5B80B]"/>
+                    <span className="font-bold text-[#B8860B]">PENDENTE</span>
                   </label>
                   <label className="flex items-center space-x-2 cursor-pointer p-2 border-2 rounded-lg bg-white border-slate-200 hover:border-[#20B2AA]">
                     <input type="radio" value="ENVIADO" checked={formData.status === 'ENVIADO'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-5 h-5 accent-[#20B2AA]"/>
@@ -797,7 +828,7 @@ export default function App() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500 mb-3 flex justify-between">
-                  Destinos <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLocais.length}</span>
+                  Destinos (Município) <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLocais.length}</span>
                 </h3>
                 <div className="max-h-32 overflow-y-auto space-y-2 custom-scrollbar">
                   {uniqueLocais.map(nome => (
@@ -961,7 +992,7 @@ export default function App() {
 
             <div>
               <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
-                <span>Pressão sobre o Estoque (Solicitado vs Adquirido)</span>
+                <span>Pressão de Demanda (Solicitado vs Adquirido)</span>
                 <span className={percentualGlobalEstoque > 100 ? 'text-[#DC143C]' : 'text-white'}>{percentualGlobalEstoque.toFixed(1)}%</span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative">
@@ -983,9 +1014,32 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 mb-4">
-             <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'list'})} className={`p-2 rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconList /></button>
-             <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'cards'})} className={`p-2 rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+             {/* Opções de ordenação explícitas para cards */}
+             {estoqueViewConfig.mode === 'cards' ? (
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold text-slate-500 text-sm">Ordenar por:</span>
+                  <select 
+                    className="p-2 border-2 border-slate-300 rounded-lg bg-white font-bold text-sm text-slate-800 focus:outline-none focus:border-[#20B2AA]" 
+                    value={`${estoqueViewConfig.sortField}_${estoqueViewConfig.sortDir}`} 
+                    onChange={(e) => {
+                      const [field, dir] = e.target.value.split('_');
+                      setEstoqueViewConfig({...estoqueViewConfig, sortField: field, sortDir: dir});
+                    }}
+                  >
+                    <option value="nome_asc">Nome (A-Z)</option>
+                    <option value="nome_desc">Nome (Z-A)</option>
+                    <option value="totalAdquirido_desc">Total Adquirido (Maior-Menor)</option>
+                    <option value="disponivel_desc">Saldo Atual (Maior-Menor)</option>
+                    <option value="disponivel_asc">Saldo Atual (Menor-Maior)</option>
+                  </select>
+                </div>
+             ) : <div />}
+             
+             <div className="flex gap-2">
+               <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'list'})} className={`p-2 rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconList /></button>
+               <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'cards'})} className={`p-2 rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
+             </div>
           </div>
 
           {loadingEstoque ? (
@@ -1003,6 +1057,7 @@ export default function App() {
                      <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">Total Pedidos</th>
                      <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">% (Ped / Adq)</th>
                      {(() => {
+                       // Filtra as levas que possuem algum valor na visualização atual
                        const levasAtivasGlobais = levasHeaders.filter(l => 
                          activeEstoque.some(item => (item.levas[l] || 0) > 0)
                        );
@@ -1019,7 +1074,7 @@ export default function App() {
                      const pctDemanda = Number(item.totalAdquirido) > 0 ? (demandaIt / Number(item.totalAdquirido)) * 100 : 0;
                      const pctDisponivel = Number(item.totalAdquirido) > 0 ? (Number(item.disponivel) / Number(item.totalAdquirido)) * 100 : 0;
                      
-                     // Definindo a cor com base no % de disponível (escalando usando as 3 cores)
+                     // Escala das 3 cores para Saldo Atual
                      const textColorClass = pctDisponivel > 50 ? 'text-[#20B2AA]' : pctDisponivel >= 20 ? 'text-[#E5B80B]' : 'text-[#DC143C]';
                      
                      const levasAtivasGlobais = levasHeaders.filter(l => 
@@ -1058,7 +1113,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                {activeEstoque.map(item => {
                  const pctDisponivel = Number(item.totalAdquirido) > 0 ? (Number(item.disponivel) / Number(item.totalAdquirido)) * 100 : 0;
-                 // Definindo a cor com base no % de disponível (escalando usando as 3 cores)
+                 // Escala das 3 cores para Saldo Atual
                  const textColorClass = pctDisponivel > 50 ? 'text-[#20B2AA]' : pctDisponivel >= 20 ? 'text-[#E5B80B]' : 'text-[#DC143C]';
 
                  return (
@@ -1080,7 +1135,7 @@ export default function App() {
                        </div>
                      </div>
                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 mt-auto">
-                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas (Levas ativas)</p>
+                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas (Levas Ativas)</p>
                        <div className="space-y-1">
                          {(() => {
                            const levasAtivasDoItem = levasHeaders.filter(l => (item.levas[l] || 0) > 0);
@@ -1203,7 +1258,7 @@ export default function App() {
                 </h3>
                 <p className="text-center text-slate-600 font-medium mb-6">
                   {modalEditConfirm.show 
-                    ? `Você está prestes a reescrever todas as informações do pedido da linha L-${formData.row}.`
+                    ? `Você está prestes a reescrever as informações do pedido L-${formData.row}.`
                     : 'Confira os dados principais antes de registrar na planilha.'}
                 </p>
 
