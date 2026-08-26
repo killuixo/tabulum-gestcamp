@@ -98,7 +98,6 @@ export default function App() {
       if (result.status === 'error') throw new Error(result.message);
       
       setEstoque(result.data || []);
-      // FILTRO CORRIGIDO: Aceita estritamente colunas que começam com "leva" ignorando letras maiusculas/minusculas
       const rawHeaders = result.levasHeaders || [];
       const validHeaders = rawHeaders.filter(h => h.toLowerCase().trim().startsWith('leva'));
       setLevasHeaders(validHeaders);
@@ -408,18 +407,19 @@ export default function App() {
   }, {});
   const sortedLocaisStats = Object.entries(locaisStats).sort((a, b) => a[0].localeCompare(b[0]));
 
-  // === CÁLCULO DE DEMANDA (ESTOQUE) ===
+  // === CÁLCULO DE DEMANDA E SAÍDA NATURAL ===
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
   let globalTotalSolicitado = 0;
+  let absoluteTotalSolicitado = 0; // Independe de filtro de status
 
   estoque.forEach(item => {
     globalTotalAdquirido += Number(item.totalAdquirido) || 0;
     globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
-  // Filtra os pedidos a serem considerados na aba de estoque
+  // 1. Calcula os totais baseados no filtro (para pressão de demanda do card superior)
   const pedidosParaEstoque = listaPedidos.filter(p => {
     if (estoqueStatusFilter === 'TODOS') return true;
     return (p.status || 'PENDENTE').toUpperCase() === estoqueStatusFilter;
@@ -437,8 +437,24 @@ export default function App() {
     });
   });
 
+  // 2. Calcula o total absoluto de tudo que foi pedido no sistema para a Saída Natural
+  listaPedidos.forEach(pedido => {
+    const qts = (pedido.quantidades || '').split('\n');
+    qts.forEach(q => {
+      absoluteTotalSolicitado += (parseInt(q, 10) || 0);
+    });
+  });
+
+  const saidaNatural = (globalTotalAdquirido - absoluteTotalSolicitado) - globalTotalDisponivel;
+  const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
   const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0;
   
+  // Gráfico de Pizza (Status)
+  const qtdEnviados = listaPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
+  const qtdPendentes = listaPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
+  const totalStatus = qtdEnviados + qtdPendentes;
+  const pctPizzaEnviados = totalStatus > 0 ? (qtdEnviados / totalStatus) * 100 : 0;
+
   const activeEstoque = [...estoque].filter(item => Number(item.totalAdquirido) > 0).sort((a, b) => {
     const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
     if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
@@ -1050,18 +1066,28 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Adquirido</p>
                 <p className="text-3xl font-black text-white">{globalTotalAdquirido}</p>
               </div>
               <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Solicitado (Demanda)</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Solicitado</p>
                 <p className="text-3xl font-black text-[#E5B80B]">{globalTotalSolicitado}</p>
               </div>
               <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Em Estoque</p>
                 <p className="text-3xl font-black text-[#20B2AA]">{globalTotalDisponivel}</p>
+              </div>
+              <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 flex flex-row items-center justify-between gap-2">
+                 <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Status dos Pedidos</p>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#20B2AA]"></span><span className="text-xs font-bold text-slate-300">Env: {qtdEnviados}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#E5B80B]"></span><span className="text-xs font-bold text-slate-300">Pend: {qtdPendentes}</span></div>
+                    </div>
+                 </div>
+                 <div className="w-14 h-14 rounded-full shrink-0 shadow-inner border border-slate-700" style={{ background: `conic-gradient(#20B2AA 0% ${pctPizzaEnviados}%, #E5B80B ${pctPizzaEnviados}% 100%)` }}></div>
               </div>
             </div>
 
@@ -1072,13 +1098,23 @@ export default function App() {
                   {percentualGlobalEstoque.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative">
+              <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative mb-6">
                 <div className={`h-4 rounded-full transition-all ${percentualGlobalEstoque > 90 ? 'bg-[#DC143C]' : percentualGlobalEstoque > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.min(percentualGlobalEstoque, 100)}%` }}></div>
                 {percentualGlobalEstoque > 100 && (
                    <div className="absolute top-0 right-0 h-full bg-[#DC143C]/50 w-full animate-pulse"></div>
                 )}
               </div>
-              {percentualGlobalEstoque > 100 && <p className="text-xs text-[#DC143C] font-bold mt-2 text-right">Demanda ultrapassou o total adquirido.</p>}
+              
+              {/* SAÍDA NATURAL */}
+              <div className="pt-4 border-t border-slate-700">
+                <div className="flex justify-between text-sm font-bold text-slate-300 mb-1">
+                  <span className="flex items-center gap-2">Saída Natural (Escoamento não registrado)</span>
+                  <span className={saidaNatural > 0 ? 'text-[#DC143C]' : 'text-[#20B2AA]'}>
+                    {saidaNatural} un. ({pctSaidaNatural.toFixed(1)}%)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">Diferença física que não passou por pedidos do aplicativo.</p>
+              </div>
             </div>
             
             <div className="mt-8 pt-6 border-t border-slate-700">
