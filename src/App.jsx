@@ -407,7 +407,6 @@ export default function App() {
   }, {});
   const sortedLocaisStats = Object.entries(locaisStats).sort((a, b) => a[0].localeCompare(b[0]));
 
-  // === CÁLCULO DE DEMANDA E SAÍDA NATURAL ===
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
@@ -453,6 +452,9 @@ export default function App() {
   const totalSaidasReal = absoluteTotalSolicitado + saidaNatural;
   const pctDemandaRelativa = totalSaidasReal > 0 ? (absoluteTotalSolicitado / totalSaidasReal) * 100 : 0;
   const pctNaturalRelativa = totalSaidasReal > 0 ? (saidaNatural / totalSaidasReal) * 100 : 0;
+  
+  // 4. Saída Total Geral vs Total Adquirido (Novo Gráfico)
+  const pctSaidaTotalGeral = globalTotalAdquirido > 0 ? (totalSaidasReal / globalTotalAdquirido) * 100 : 0;
   
   // Gráfico de Pizza (Status)
   const qtdEnviados = listaPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
@@ -557,6 +559,7 @@ export default function App() {
         </div>
       </div>
 
+      {}
       {/* FORMULÁRIO */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
@@ -822,6 +825,7 @@ export default function App() {
         </form>
       )}
 
+      {}
       {/* DASHBOARD DE PEDIDOS */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -1044,6 +1048,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       {/* ESTOQUE */}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
@@ -1122,6 +1127,19 @@ export default function App() {
                   <div className={`h-4 rounded-full transition-all ${saidaNatural > 0 ? 'bg-[#DC143C]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.max(0, Math.min(pctSaidaNatural, 100))}%` }}></div>
                 </div>
                 <p className="text-xs text-slate-400">Diferença física que não passou por pedidos do aplicativo em relação ao total adquirido.</p>
+              </div>
+
+              {/* SAÍDA TOTAL VS ADQUIRIDO (NOVO GRÁFICO) */}
+              <div className="pt-4 mt-4 border-t border-slate-700">
+                <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
+                  <span>Saída Total (Pedidos App + Escoamento vs Adquirido)</span>
+                  <span className={pctSaidaTotalGeral > 90 ? 'text-[#DC143C]' : pctSaidaTotalGeral > 50 ? 'text-[#E5B80B]' : 'text-[#20B2AA]'}>
+                    {totalSaidasReal} un. ({pctSaidaTotalGeral.toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative mb-1">
+                  <div className={`h-4 rounded-full transition-all ${pctSaidaTotalGeral > 90 ? 'bg-[#DC143C]' : pctSaidaTotalGeral > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.max(0, Math.min(pctSaidaTotalGeral, 100))}%` }}></div>
+                </div>
               </div>
 
               {/* COMPARAÇÃO: DEMANDA VS SAÍDA NATURAL */}
@@ -1314,6 +1332,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       {/* MODAL DE STATUS RÁPIDO */}
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
