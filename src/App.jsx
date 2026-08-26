@@ -449,6 +449,11 @@ export default function App() {
   const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
   const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0;
   
+  // 3. Proporção das Saídas (Formal vs Natural)
+  const totalSaidasReal = absoluteTotalSolicitado + saidaNatural;
+  const pctDemandaRelativa = totalSaidasReal > 0 ? (absoluteTotalSolicitado / totalSaidasReal) * 100 : 0;
+  const pctNaturalRelativa = totalSaidasReal > 0 ? (saidaNatural / totalSaidasReal) * 100 : 0;
+  
   // Gráfico de Pizza (Status)
   const qtdEnviados = listaPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
   const qtdPendentes = listaPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
@@ -1107,13 +1112,31 @@ export default function App() {
               
               {/* SAÍDA NATURAL */}
               <div className="pt-4 border-t border-slate-700">
-                <div className="flex justify-between text-sm font-bold text-slate-300 mb-1">
-                  <span className="flex items-center gap-2">Saída Natural (Escoamento não registrado)</span>
+                <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
+                  <span>Saída Natural (Escoamento não registrado)</span>
                   <span className={saidaNatural > 0 ? 'text-[#DC143C]' : 'text-[#20B2AA]'}>
                     {saidaNatural} un. ({pctSaidaNatural.toFixed(1)}%)
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">Diferença física que não passou por pedidos do aplicativo.</p>
+                <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative mb-1">
+                  <div className={`h-4 rounded-full transition-all ${saidaNatural > 0 ? 'bg-[#DC143C]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.max(0, Math.min(pctSaidaNatural, 100))}%` }}></div>
+                </div>
+                <p className="text-xs text-slate-400">Diferença física que não passou por pedidos do aplicativo em relação ao total adquirido.</p>
+              </div>
+
+              {/* COMPARAÇÃO: DEMANDA VS SAÍDA NATURAL */}
+              <div className="pt-4 mt-4 border-t border-slate-700">
+                <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
+                  <span>Composição das Saídas (Formal vs Escoamento)</span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden flex relative mb-2">
+                  <div className="h-4 bg-[#E5B80B] transition-all" style={{ width: `${Math.max(0, Math.min(pctDemandaRelativa, 100))}%` }} title={`Pedidos do App: ${pctDemandaRelativa.toFixed(1)}%`}></div>
+                  <div className="h-4 bg-[#DC143C] transition-all" style={{ width: `${Math.max(0, Math.min(pctNaturalRelativa, 100))}%` }} title={`Escoamento: ${pctNaturalRelativa.toFixed(1)}%`}></div>
+                </div>
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-[#E5B80B]">Pedidos App: {pctDemandaRelativa.toFixed(1)}%</span>
+                  <span className="text-[#DC143C]">Escoamento: {pctNaturalRelativa.toFixed(1)}%</span>
+                </div>
               </div>
             </div>
             
