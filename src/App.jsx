@@ -401,6 +401,13 @@ export default function App() {
   const uniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
   const uniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
 
+  const locaisStats = listaPedidos.reduce((acc, p) => {
+    const loc = getMunicipioString(p.enderecoRecebimento || p.modoRecebimento);
+    if (loc) acc[loc] = (acc[loc] || 0) + 1;
+    return acc;
+  }, {});
+  const sortedLocaisStats = Object.entries(locaisStats).sort((a, b) => a[0].localeCompare(b[0]));
+
   // === CÁLCULO DE DEMANDA (ESTOQUE) ===
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
@@ -1077,8 +1084,18 @@ export default function App() {
             <div className="mt-8 pt-6 border-t border-slate-700">
               <h3 className="font-bold text-sm uppercase text-slate-400 mb-4">Principais Destinos Atendidos</h3>
               <div className="flex flex-wrap gap-2">
-                {uniqueLocais.length > 0 ? uniqueLocais.map(loc => (
-                  <span key={loc} className="px-3 py-1 bg-slate-800 text-slate-300 rounded-md text-xs font-bold border border-slate-700">{loc}</span>
+                {sortedLocaisStats.length > 0 ? sortedLocaisStats.map(([loc, count]) => (
+                  <button 
+                    key={loc} 
+                    onClick={() => {
+                      setViewConfig({...viewConfig, detailFilter: { type: 'enderecoRecebimento', value: loc }, page: 1});
+                      setActiveTab('dashboard');
+                      window.scrollTo(0,0);
+                    }}
+                    className="px-3 py-1 bg-slate-800 text-slate-300 hover:bg-[#20B2AA] hover:text-white transition-colors rounded-md text-xs font-bold border border-slate-700 cursor-pointer flex items-center gap-1"
+                  >
+                    {loc} <span className="opacity-60">({count})</span>
+                  </button>
                 )) : <span className="text-slate-500 text-sm">Nenhum local registrado ainda.</span>}
               </div>
             </div>
