@@ -16,6 +16,8 @@ const IconFilter = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="n
 const IconChevronDown = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>;
 const IconChevronUp = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>;
 const IconSearch = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+const IconDownload = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
+const IconPDF = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
 
 const GradientSpinner = ({ className = "w-10 h-10" }) => (
   <svg className={`animate-spin ${className}`} viewBox="0 0 50 50">
@@ -55,30 +57,33 @@ export default function App() {
   const [viewConfig, setViewConfig] = useState({ mode: 'cards', sort: 'data_desc', page: 1, detailFilter: null });
   const [estoqueViewConfig, setEstoqueViewConfig] = useState({ mode: 'cards', sortField: 'nome', sortDir: 'asc' });
   
-  // Novos Estados Globais e de Gráficos
+  // Filtros Globais e Buscas
   const [globalSearch, setGlobalSearch] = useState('');
   const [showDashboardFilters, setShowDashboardFilters] = useState(false);
   const [dashboardStatus, setDashboardStatus] = useState('TODOS');
   const [estoqueStatusFilter, setEstoqueStatusFilter] = useState('TODOS');
   
-  const [chartDateField, setChartDateField] = useState('data'); // 'data' ou 'dataAgendada'
+  // Gráficos
+  const [chartDateField, setChartDateField] = useState('data'); 
   const [selectedChartMaterials, setSelectedChartMaterials] = useState([]);
+  const [chartMode, setChartMode] = useState('TOTAL');
   
+  // Formulário
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
   const [enviados, setEnviados] = useState({});
   
+  // Dados brutos da Planilha
   const [estoque, setEstoque] = useState([]);
   const [levasHeaders, setLevasHeaders] = useState([]);
   const [listaPedidos, setListaPedidos] = useState([]);
   
+  // Estados de Interface
   const [loadingEstoque, setLoadingEstoque] = useState(false);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
   const [mensagem, setMensagem] = useState(null); 
   const [mensagemLista, setMensagemLista] = useState(null);
-  
   const [filters, setFilters] = useState({ articulador: [], lideranca: [], local: [] });
   const [modalStatus, setModalStatus] = useState({ show: false, step: 1, order: null, newStatus: '', error: null });
   const [modalEditConfirm, setModalEditConfirm] = useState({ show: false, step: 1, changesSummary: [], error: null });
@@ -87,22 +92,68 @@ export default function App() {
   const [modalLeva, setModalLeva] = useState({ show: false, step: 1, nome: '', itens: {}, error: null });
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    
+    if (activeTab === 'dashboard') {
+      csvContent += "ID,Data Inclusao,Lideranca,Articulador,Modo Recebimento,Destino,Data Agendada,Horario,Materiais,Status\n";
+      sortedPedidos.forEach(p => {
+        const row = [
+          p.row,
+          p.data,
+          `"${p.liderancaNome || ''}"`,
+          `"${p.articuladorNome || ''}"`,
+          `"${p.modoRecebimento || ''}"`,
+          `"${p.enderecoRecebimento || ''}"`,
+          p.dataAgendada,
+          p.horarioRetirada,
+          `"${(p.materiais || '').replace(/\n/g, ' / ')}: ${(p.quantidades || '').replace(/\n/g, ' / ')}"`,
+          p.status
+        ];
+        csvContent += row.join(",") + "\n";
+      });
+    } else if (activeTab === 'estoque') {
+      const levasAtivasGlobais = levasHeaders.filter(l => activeEstoque.some(item => (item.levas[l] || 0) > 0));
+      csvContent += `Material,Adquirido,Demanda Filtrada,% Demanda Filtrada,${levasAtivasGlobais.join(',')},Em Estoque\n`;
+      activeEstoque.forEach(item => {
+        const demandaIt = aggregatedRequests[item.nome] || 0;
+        const pctDemanda = Number(item.totalAdquirido) > 0 ? ((demandaIt / Number(item.totalAdquirido)) * 100).toFixed(1) + '%' : '0%';
+        const levasVals = levasAtivasGlobais.map(l => item.levas[l] || 0).join(',');
+        
+        const row = [
+          `"${item.nome}"`,
+          item.totalAdquirido,
+          demandaIt,
+          pctDemanda,
+          levasVals,
+          item.disponivel
+        ];
+        csvContent += row.join(",") + "\n";
+      });
+    }
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Tabulum_Export_${activeTab}_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   useEffect(() => {
     if (activeTab === 'novo_pedido' && estoque.length === 0) fetchStockData();
-    if (activeTab === 'dashboard' && listaPedidos.length === 0) fetchPedidosData(); // Antigo Painel
+    if (activeTab === 'dashboard' && listaPedidos.length === 0) fetchPedidosData();
     if (activeTab === 'editar_pedido' && estoque.length === 0) fetchStockData();
-    if (activeTab === 'estoque') { // Antigo Estoque (Agora Dashboard)
+    if (activeTab === 'estoque') {
        if (estoque.length === 0) fetchStockData(); 
        if (listaPedidos.length === 0) fetchPedidosData(); 
     }
   }, [activeTab]);
-
-  useEffect(() => {
-    // Inicializa todos os materiais como selecionados no gráfico assim que o estoque carregar
-    if (estoque.length > 0 && selectedChartMaterials.length === 0) {
-      setSelectedChartMaterials(estoque.map(i => i.nome));
-    }
-  }, [estoque]);
 
   const fetchStockData = async () => {
     setLoadingEstoque(true);
@@ -116,7 +167,6 @@ export default function App() {
       const rawHeaders = result.levasHeaders || [];
       const validHeaders = rawHeaders.filter(h => h.toLowerCase().trim().startsWith('leva'));
       setLevasHeaders(validHeaders);
-      
     } catch (error) {
       setMensagem({ tipo: 'erro', texto: `Erro no Estoque: ${error.message}` });
     } finally {
@@ -377,11 +427,10 @@ export default function App() {
     return dataString;
   };
 
-  // getFilteredAndSortedPedidos agora processa Busca Universal e Filtros Avançados
+  // Função Principal de Filtragem: Impacta TODO o Dashboard
   const getFilteredAndSortedPedidos = () => {
     let filtered = [...listaPedidos];
     
-    // Filtro de detalhe (ao clicar num nome)
     if (viewConfig.detailFilter) {
       filtered = filtered.filter(p => {
         const val = viewConfig.detailFilter.type === 'enderecoRecebimento' ? getMunicipioString(p.enderecoRecebimento) : p[viewConfig.detailFilter.type];
@@ -389,7 +438,6 @@ export default function App() {
       });
     }
 
-    // Busca universal
     if (globalSearch.trim()) {
       const s = globalSearch.toLowerCase();
       filtered = filtered.filter(p => 
@@ -430,11 +478,18 @@ export default function App() {
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
     : sortedPedidos; 
 
-  const uniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
-  const uniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
-  const uniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
+  // Listas "brutas" para popular as Datalists dos Formulários sem restrição de filtros
+  const rawUniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
+  const rawUniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
+  const rawUniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
 
-  const locaisStats = listaPedidos.reduce((acc, p) => {
+  // Listas Dinâmicas (Faceted Search) - Mostram apenas opções disponíveis com os filtros atuais (+ as ativas)
+  const uniqueArticuladores = [...new Set([...sortedPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean), ...filters.articulador])].sort();
+  const uniqueLiderancas = [...new Set([...sortedPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean), ...filters.lideranca])].sort();
+  const uniqueLocais = [...new Set([...sortedPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean), ...filters.local])].sort();
+
+  // Locais Atendidos (Dashboard) respeita o filtro
+  const locaisStats = sortedPedidos.reduce((acc, p) => {
     const loc = getMunicipioString(p.enderecoRecebimento || p.modoRecebimento);
     if (loc) acc[loc] = (acc[loc] || 0) + 1;
     return acc;
@@ -444,15 +499,16 @@ export default function App() {
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
-  let globalTotalSolicitado = 0;
-  let absoluteTotalSolicitado = 0; 
+  let globalTotalSolicitado = 0; // Calculado sobre sortedPedidos
+  let globalAbsoluteTotalSolicitado = 0; // Calculado sobre TODOS os pedidos (ListaPedidos bruta) para a Saída Natural
 
   estoque.forEach(item => {
     globalTotalAdquirido += Number(item.totalAdquirido) || 0;
     globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
-  const pedidosParaEstoque = listaPedidos.filter(p => {
+  // Demanda das Linhas e Tabela Filtrada do Dashboard (respeita sortedPedidos e filtro do dropdown)
+  const pedidosParaEstoque = sortedPedidos.filter(p => {
     if (estoqueStatusFilter === 'TODOS') return true;
     return (p.status || 'PENDENTE').toUpperCase() === estoqueStatusFilter;
   });
@@ -469,37 +525,30 @@ export default function App() {
     });
   });
 
+  // Saída Natural deve ser Global (independe de filtros de cidade, etc), logo usa a lista bruta
   listaPedidos.forEach(pedido => {
     const qts = (pedido.quantidades || '').split('\n');
     qts.forEach(q => {
-      absoluteTotalSolicitado += (parseInt(q, 10) || 0);
+      globalAbsoluteTotalSolicitado += (parseInt(q, 10) || 0);
     });
   });
 
-  const saidaNatural = (globalTotalAdquirido - absoluteTotalSolicitado) - globalTotalDisponivel;
+  const saidaNatural = (globalTotalAdquirido - globalAbsoluteTotalSolicitado) - globalTotalDisponivel;
   const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
-  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0;
+  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; // Pressão Filtrada
   
-  const totalSaidasReal = absoluteTotalSolicitado + saidaNatural;
-  const pctDemandaRelativa = totalSaidasReal > 0 ? (absoluteTotalSolicitado / totalSaidasReal) * 100 : 0;
-  const pctNaturalRelativa = totalSaidasReal > 0 ? (saidaNatural / totalSaidasReal) * 100 : 0;
-  const pctSaidaTotalGeral = globalTotalAdquirido > 0 ? (totalSaidasReal / globalTotalAdquirido) * 100 : 0;
-  
-  const qtdEnviados = listaPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
-  const qtdPendentes = listaPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
+  // Pizza Chart respeita o filtro
+  const qtdEnviados = sortedPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
+  const qtdPendentes = sortedPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
   const totalStatus = qtdEnviados + qtdPendentes;
   const pctPizzaEnviados = totalStatus > 0 ? (qtdEnviados / totalStatus) * 100 : 0;
 
-  // Filtragem do Estoque List (respeitando a Busca Universal)
-  const activeEstoque = [...estoque]
-    .filter(item => Number(item.totalAdquirido) > 0)
-    .filter(item => !globalSearch.trim() || item.nome.toLowerCase().includes(globalSearch.toLowerCase()))
-    .sort((a, b) => {
-      const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
-      if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
-      if (estoqueViewConfig.sortField === 'totalAdquirido') return (Number(a.totalAdquirido) - Number(b.totalAdquirido)) * dir;
-      if (estoqueViewConfig.sortField === 'disponivel') return (Number(a.disponivel) - Number(b.disponivel)) * dir;
-      return 0;
+  const activeEstoque = [...estoque].filter(item => Number(item.totalAdquirido) > 0).sort((a, b) => {
+    const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
+    if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
+    if (estoqueViewConfig.sortField === 'totalAdquirido') return (Number(a.totalAdquirido) - Number(b.totalAdquirido)) * dir;
+    if (estoqueViewConfig.sortField === 'disponivel') return (Number(a.disponivel) - Number(b.disponivel)) * dir;
+    return 0;
   });
 
   const totalSolicitadoEdit = estoque.reduce((acc, item) => acc + (pedidos[item.id] || 0), 0);
@@ -517,20 +566,23 @@ export default function App() {
           dKey = `${y}-${m}-${d}`;
       }
       
-      if (!chartDataMap[dKey]) chartDataMap[dKey] = {};
+      if (!chartDataMap[dKey]) chartDataMap[dKey] = { TOTAL: 0 };
       
       const mats = (pedido.materiais || '').split('\n');
       const qts = (pedido.quantidades || '').split('\n');
       mats.forEach((m, idx) => {
           const matName = m.trim();
-          if (matName && selectedChartMaterials.includes(matName)) {
-             chartDataMap[dKey][matName] = (chartDataMap[dKey][matName] || 0) + (parseInt(qts[idx], 10) || 0);
+          const q = parseInt(qts[idx], 10) || 0;
+          if (matName) {
+             chartDataMap[dKey].TOTAL += q;
+             if (chartMode === 'SELECTION' && selectedChartMaterials.includes(matName)) {
+                chartDataMap[dKey][matName] = (chartDataMap[dKey][matName] || 0) + q;
+             }
           }
       });
   });
   
   const sortedChartDates = Object.keys(chartDataMap).sort((a,b) => new Date(a) - new Date(b));
-  
   const chartW = 900;
   const chartH = 350;
   const padX = 50;
@@ -538,11 +590,11 @@ export default function App() {
   const plotW = chartW - padX * 2;
   const plotH = chartH - padY * 2;
   
+  const linesToDraw = chartMode === 'TOTAL' ? ['TOTAL'] : selectedChartMaterials;
   const maxVal = sortedChartDates.length > 0 
-    ? Math.max(...sortedChartDates.flatMap(d => Object.values(chartDataMap[d] || {})).concat([10])) 
+    ? Math.max(...sortedChartDates.flatMap(d => linesToDraw.map(mat => chartDataMap[d]?.[mat] || 0)).concat([10])) 
     : 10;
   const stepX = sortedChartDates.length > 1 ? plotW / (sortedChartDates.length - 1) : plotW;
-  
   const chartColors = ['#E5B80B', '#DC143C', '#20B2AA', '#4F46E5', '#E11D48', '#059669', '#D97706', '#7C3AED', '#2563EB', '#BE123C', '#0ea5e9', '#ec4899', '#f97316'];
 
   const EntityLink = ({ type, label }) => {
@@ -551,7 +603,7 @@ export default function App() {
     if (!trimmedLabel || trimmedLabel === 'Não Informado') return <span>{val || 'Não Informado'}</span>;
     return (
       <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: trimmedLabel }, page: 1}); setActiveTab('dashboard'); window.scrollTo(0,0); }} 
-            className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10">
+            className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10 print:pointer-events-none print:border-none print:text-slate-900">
         {type === 'enderecoRecebimento' ? (
            <span className="flex flex-col">
              <span className="text-sm font-black">{trimmedLabel}</span>
@@ -566,7 +618,7 @@ export default function App() {
     const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
     return (
       <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'PENDENTE' : 'ENVIADO', error: null }); }}
-              className={`relative z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
+              className={`relative z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 print:pointer-events-none print:transform-none ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
         {pedido.status || 'PENDENTE'}
       </button>
     );
@@ -576,7 +628,7 @@ export default function App() {
     const isSorted = viewConfig.sort.startsWith(field);
     const isAsc = viewConfig.sort.endsWith('asc');
     return (
-      <th onClick={() => handleSortToggle(field)} className="p-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none">
+      <th onClick={() => handleSortToggle(field)} className="p-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none print:pointer-events-none">
         <div className="flex items-center space-x-1">
           <span>{label}</span>
           {isSorted && <span className="text-[#20B2AA]">{isAsc ? '▲' : '▼'}</span>}
@@ -589,7 +641,7 @@ export default function App() {
     const isSorted = estoqueViewConfig.sortField === field;
     const isAsc = estoqueViewConfig.sortDir === 'asc';
     return (
-      <th onClick={() => handleEstoqueSortToggle(field)} className={`p-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none ${className}`}>
+      <th onClick={() => handleEstoqueSortToggle(field)} className={`p-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none print:pointer-events-none ${className}`}>
         <div className={`flex items-center space-x-1 ${className.includes('text-center') ? 'justify-center' : ''}`}>
           <span>{label}</span>
           {isSorted && <span className="text-[#20B2AA]">{isAsc ? '▲' : '▼'}</span>}
@@ -601,16 +653,25 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
       
-      {/* Datalists */}
-      <datalist id="list-articuladores">{uniqueArticuladores.map((a, i) => <option key={i} value={a} />)}</datalist>
-      <datalist id="list-liderancas">{uniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
-      <datalist id="list-locais">{uniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
+      <style>{`
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+          body { background: white !important; }
+          .print\\:hidden { display: none !important; }
+          .shadow-\\[6px_6px_0px_0px_rgba\\(30\\,41\\,59\\,1\\)\\] { box-shadow: none !important; border-color: #e2e8f0 !important; }
+          .shadow-\\[8px_8px_0px_0px_rgba\\(229\\,184\\,11\\,1\\)\\] { box-shadow: none !important; border-color: #e2e8f0 !important; }
+        }
+      `}</style>
 
-      {}
-      <div className="max-w-6xl mx-auto mb-6">
-        <div className="flex flex-col lg:flex-row justify-between items-center gap-6 mb-6">
-          <div className="flex items-center gap-3 md:gap-5">
-            <img 
+      {/* Datalists (Sempre com as listas brutas inteiras) */}
+      <datalist id="list-articuladores">{rawUniqueArticuladores.map((a, i) => <option key={i} value={a} />)}</datalist>
+      <datalist id="list-liderancas">{rawUniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
+      <datalist id="list-locais">{rawUniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
+
+      {/* Navegação de Abas / Header */}
+      <div className="max-w-6xl mx-auto mb-8 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden">
+        <div className="flex items-center gap-3 md:gap-5 mb-4 lg:mb-0">
+          <img 
               src="https://raw.githubusercontent.com/killuixo/tabulum-gestcamp/refs/heads/main/icon-192.png" 
               alt="Tabulum Logo" 
               className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-xl shadow-sm border-2 border-slate-900"
@@ -646,9 +707,9 @@ export default function App() {
           </div>
         </div>
 
-        {}
+        {/* FILTROS GLOBAIS AVANÇADOS */}
         {(activeTab === 'dashboard' || activeTab === 'estoque') && (
-           <div className="bg-white p-4 md:p-6 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] space-y-4 mb-6 animate-in slide-in-from-top-2">
+           <div className="max-w-6xl mx-auto bg-white p-4 md:p-6 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] space-y-4 mb-6 animate-in slide-in-from-top-2 print:hidden">
              <div className="flex justify-between items-center cursor-pointer select-none bg-slate-100 p-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition" onClick={() => setShowDashboardFilters(!showDashboardFilters)}>
                 <div className="flex items-center gap-2 font-black text-slate-700">
                   <IconFilter />
@@ -721,11 +782,10 @@ export default function App() {
              )}
            </div>
         )}
-      </div>
 
       {}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
-        <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
+        <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300 print:hidden">
           
           {activeTab === 'editar_pedido' && (
              <div className="md:col-span-12 bg-slate-900 text-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -907,7 +967,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Observações e Status (Apenas Visível na Edição) */}
+          {/* Observações e Status */}
           <div className="md:col-span-12 bg-[#F0F4F8] rounded-2xl p-6 border-2 border-slate-300 shadow-sm">
              <div className="flex items-center space-x-3 mb-4">
               <div className="text-slate-600"><IconMessage /></div>
@@ -941,7 +1001,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Resumo do Pedido (Visível Apenas em Edição) */}
+          {/* Resumo do Pedido (Edição) */}
           {activeTab === 'editar_pedido' && (
             <div className="md:col-span-12 bg-slate-100 rounded-xl p-6 border-2 border-slate-300">
               <h3 className="font-bold text-lg mb-4 text-slate-700">Resumo de Atendimento do Pedido</h3>
@@ -993,9 +1053,9 @@ export default function App() {
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
           {viewConfig.detailFilter && (
-            <div className="bg-[#20B2AA] text-white rounded-2xl p-6 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 gap-4">
+            <div className="bg-[#20B2AA] text-white rounded-2xl p-6 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 gap-4 print:hidden">
               <div>
-                <span className="text-sm font-bold uppercase tracking-wider text-slate-800">Ficha Completa • {viewConfig.detailFilter.type === 'articuladorNome' ? 'Articulador' : viewConfig.detailFilter.type === 'liderancaNome' ? 'Liderança' : 'Destino'}</span>
+                <span className="text-sm font-bold uppercase tracking-wider text-slate-800">Filtro Rápido • {viewConfig.detailFilter.type === 'articuladorNome' ? 'Articulador' : viewConfig.detailFilter.type === 'liderancaNome' ? 'Liderança' : 'Destino'}</span>
                 <h2 className="text-3xl font-black mt-1">{viewConfig.detailFilter.value}</h2>
                 <p className="mt-2 font-bold text-slate-800 bg-white/30 px-3 py-1 rounded-full inline-block text-sm">{sortedPedidos.length} Pedidos Encontrados</p>
               </div>
@@ -1006,31 +1066,41 @@ export default function App() {
           )}
 
           {mensagemLista && (
-            <div className="bg-[#DC143C]/10 border-2 border-[#DC143C] p-4 rounded-xl text-[#DC143C] font-bold text-center mb-6">
+            <div className="bg-[#DC143C]/10 border-2 border-[#DC143C] p-4 rounded-xl text-[#DC143C] font-bold text-center mb-6 print:hidden">
               <span className="block mb-1">Aviso do Sistema:</span>
               {mensagemLista}
             </div>
           )}
 
-          {/* Cabeçalho da Lista (Exibição e Modos de Visão) */}
-          <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] gap-4">
-             <div className="font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-lg w-full sm:w-auto text-center">
-               Exibindo: <span className="text-slate-900">{sortedPedidos.length}</span> resultados
+          <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t-2 border-slate-200 gap-4 print:hidden">
+             <div className="font-bold text-slate-600 bg-white shadow-sm border border-slate-200 px-4 py-2 rounded-lg w-full sm:w-auto text-center">
+               Exibindo: <span className="text-slate-900">{sortedPedidos.length}</span> resultados filtrados
              </div>
+             
              <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
-               <div className="flex items-center space-x-2 w-full sm:w-auto">
-                  <span className="font-bold text-slate-500 text-xs uppercase">Ordenar:</span>
-                  <select className="p-2 flex-1 sm:flex-none border-2 border-slate-300 rounded-lg bg-white font-bold text-sm text-slate-800 focus:outline-none focus:border-[#20B2AA]" value={viewConfig.sort} onChange={(e) => setViewConfig({...viewConfig, sort: e.target.value})}>
-                    <option value="data_desc">Data (Recentes)</option>
-                    <option value="data_asc">Data (Antigos)</option>
-                    <option value="agendamento_asc">Agendamento (Próximos)</option>
-                    <option value="agendamento_desc">Agendamento (Distantes)</option>
-                  </select>
-               </div>
-               <div className="flex space-x-2 w-full sm:w-auto justify-center">
-                 <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
-                 <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
-               </div>
+                <div className="flex gap-2 w-full sm:w-auto">
+                   <button onClick={handleExportCSV} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#20B2AA]/10 text-[#008080] border-2 border-[#20B2AA]/30 hover:bg-[#20B2AA]/20 px-3 py-2 rounded-lg font-bold transition-colors">
+                      <IconDownload /> <span className="hidden sm:inline">CSV</span>
+                   </button>
+                   <button onClick={handleExportPDF} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#DC143C]/10 text-[#DC143C] border-2 border-[#DC143C]/30 hover:bg-[#DC143C]/20 px-3 py-2 rounded-lg font-bold transition-colors">
+                      <IconPDF /> <span className="hidden sm:inline">PDF</span>
+                   </button>
+                </div>
+
+                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                   <span className="font-bold text-slate-500 text-xs uppercase">Ordenar:</span>
+                   <select className="p-2 flex-1 sm:flex-none border-2 border-slate-300 rounded-lg bg-white font-bold text-sm text-slate-800 focus:outline-none focus:border-[#20B2AA]" value={viewConfig.sort} onChange={(e) => setViewConfig({...viewConfig, sort: e.target.value})}>
+                     <option value="data_desc">Data (Recentes)</option>
+                     <option value="data_asc">Data (Antigos)</option>
+                     <option value="agendamento_asc">Agendamento (Próximos)</option>
+                     <option value="agendamento_desc">Agendamento (Distantes)</option>
+                   </select>
+                </div>
+  
+                <div className="flex space-x-2 w-full sm:w-auto justify-center">
+                  <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
+                  <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
+                </div>
              </div>
           </div>
 
@@ -1045,12 +1115,12 @@ export default function App() {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {displayedPedidos.length === 0 ? (
-                      <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed">
-                        Nenhum pedido encontrado.
+                      <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed print:hidden">
+                        Nenhum pedido encontrado com os filtros atuais.
                       </div>
                     ) : (
                       displayedPedidos.map(pedido => (
-                        <div key={pedido.row} onClick={() => handleOpenView(pedido)} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] cursor-pointer transition-all transform hover:-translate-y-1">
+                        <div key={pedido.row} onClick={() => handleOpenView(pedido)} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] flex flex-col h-full hover:shadow-[6px_6px_0px_0px_rgba(229,184,11,1)] cursor-pointer transition-all transform hover:-translate-y-1 print:break-inside-avoid print:shadow-none print:transform-none">
                           <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-3">
                             <StatusBadge pedido={pedido} />
                             <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">
@@ -1079,7 +1149,7 @@ export default function App() {
                   </div>
                   
                   {totalPages > 1 && (
-                    <div className="flex justify-center space-x-2 pt-6 pb-10 flex-wrap gap-y-2">
+                    <div className="flex justify-center space-x-2 pt-6 pb-10 flex-wrap gap-y-2 print:hidden">
                       {Array.from({length: totalPages}, (_, i) => (
                         <button key={i+1} onClick={() => setViewConfig({...viewConfig, page: i+1})} className={`w-10 h-10 rounded-full font-bold border-2 ${viewConfig.page === i+1 ? 'bg-[#DC143C] text-white border-[#DC143C]' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}>
                           {i + 1}
@@ -1091,7 +1161,7 @@ export default function App() {
               )}
 
               {viewConfig.mode === 'list' && (
-                 <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] mb-20">
+                 <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] mb-20 print:shadow-none print:mb-0">
                    <table className="w-full text-left text-sm border-collapse min-w-[1050px]">
                      <thead>
                        <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
@@ -1101,20 +1171,20 @@ export default function App() {
                          <th className="p-4 font-black">Modo</th>
                          <SortHeader label="Local" field="local" />
                          <SortHeader label="Agendamento" field="agendamento" />
-                         <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais</th>
+                         <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais (S/ Filtro)</th>
                          <SortHeader label="Status" field="status" />
                        </tr>
                      </thead>
                      <tbody>
                        {displayedPedidos.map(pedido => (
-                         <tr key={pedido.row} onClick={() => handleOpenView(pedido)} className="border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer group">
+                         <tr key={pedido.row} onClick={() => handleOpenView(pedido)} className="border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer group print:break-inside-avoid">
                            <td className="p-4 font-bold text-slate-700">{String(pedido.data || '').split(' ')[0] || '-'}</td>
                            <td className="p-4"><EntityLink type="liderancaNome" label={pedido.liderancaNome || '-'} /></td>
                            <td className="p-4"><EntityLink type="articuladorNome" label={pedido.articuladorNome || '-'} /></td>
                            <td className="p-4 text-xs font-bold text-slate-700">{pedido.modoRecebimento || '-'}</td>
                            <td className="p-4"><EntityLink type="enderecoRecebimento" label={pedido.enderecoRecebimento || '-'} /></td>
                            <td className="p-4 text-xs font-bold text-slate-700">{pedido.dataAgendada ? formatarDataBR(pedido.dataAgendada) : '-'} {pedido.horarioRetirada ? `(${pedido.horarioRetirada})` : ''}</td>
-                           <td className="p-4 text-xs text-slate-600 truncate max-w-[200px]">
+                           <td className="p-4 text-xs text-slate-600 truncate max-w-[200px] print:max-w-none print:whitespace-pre-line">
                              {String(pedido.materiais || '').split('\n').join(' | ')}
                            </td>
                            <td className="p-4 text-center"><StatusBadge pedido={pedido} /></td>
@@ -1122,7 +1192,7 @@ export default function App() {
                        ))}
                      </tbody>
                    </table>
-                   {displayedPedidos.length === 0 && <div className="p-8 text-center text-slate-500 font-bold">Nenhum pedido encontrado.</div>}
+                   {displayedPedidos.length === 0 && <div className="p-8 text-center text-slate-500 font-bold print:hidden">Nenhum pedido encontrado.</div>}
                  </div>
               )}
             </>
@@ -1134,13 +1204,14 @@ export default function App() {
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
           
-          <div className="bg-slate-900 rounded-2xl p-6 md:p-8 shadow-[8px_8px_0px_0px_rgba(229,184,11,1)] text-white">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-700 pb-4 mb-6 gap-4">
+          <div className="bg-slate-900 rounded-2xl p-6 md:p-8 shadow-[8px_8px_0px_0px_rgba(229,184,11,1)] text-white print:shadow-none print:bg-white print:text-slate-900 print:border-2 print:border-slate-800">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-700 print:border-slate-200 pb-4 mb-6 gap-4">
               <div>
-                <h2 className="text-2xl font-black text-[#E5B80B] flex items-center gap-2"><IconTrendingUp/> Visão Geral do Estoque</h2>
-                <p className="text-slate-400 text-sm mt-1">Análise baseada no total adquirido e demanda de pedidos.</p>
+                <h2 className="text-2xl font-black text-[#E5B80B] flex items-center gap-2 print:text-slate-900"><IconTrendingUp/> Dashboard Estatístico</h2>
+                <p className="text-slate-400 print:text-slate-500 text-sm mt-1">Análise de Demanda de Estoque Filtrada.</p>
               </div>
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto print:hidden">
+                {/* FILTRO DE DEMANDA DO ESTOQUE */}
                 <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-lg w-full sm:w-auto border border-slate-700 shadow-inner">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 shrink-0">Demanda:</span>
                   <select className="bg-transparent text-white font-bold text-sm focus:outline-none cursor-pointer w-full py-1"
@@ -1157,77 +1228,61 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Adquirido</p>
-                <p className="text-3xl font-black text-white">{globalTotalAdquirido}</p>
+              <div className="bg-slate-800 print:bg-slate-50 print:border-slate-200 p-5 rounded-xl border border-slate-700">
+                <p className="text-xs font-bold text-slate-400 print:text-slate-500 uppercase tracking-widest mb-1">Total Adquirido (Global)</p>
+                <p className="text-3xl font-black text-white print:text-slate-900">{globalTotalAdquirido}</p>
               </div>
-              <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Solicitado</p>
-                <p className="text-3xl font-black text-[#E5B80B]">{globalTotalSolicitado}</p>
+              <div className="bg-slate-800 print:bg-slate-50 print:border-slate-200 p-5 rounded-xl border border-slate-700">
+                <p className="text-xs font-bold text-slate-400 print:text-slate-500 uppercase tracking-widest mb-1">Total Solicitado (Filtro)</p>
+                <p className="text-3xl font-black text-[#E5B80B] print:text-slate-900">{globalTotalSolicitado}</p>
               </div>
-              <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Em Estoque</p>
-                <p className="text-3xl font-black text-[#20B2AA]">{globalTotalDisponivel}</p>
+              <div className="bg-slate-800 print:bg-slate-50 print:border-slate-200 p-5 rounded-xl border border-slate-700">
+                <p className="text-xs font-bold text-slate-400 print:text-slate-500 uppercase tracking-widest mb-1">Em Estoque (Global)</p>
+                <p className="text-3xl font-black text-[#20B2AA] print:text-slate-900">{globalTotalDisponivel}</p>
               </div>
-              <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 flex flex-row items-center justify-between gap-2">
+              <div className="bg-slate-800 print:bg-slate-50 print:border-slate-200 p-5 rounded-xl border border-slate-700 flex flex-row items-center justify-between gap-2">
                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Status dos Pedidos</p>
+                    <p className="text-[10px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-widest mb-2">Status (Filtro)</p>
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#20B2AA]"></span><span className="text-xs font-bold text-slate-300">Env: {qtdEnviados}</span></div>
-                      <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#E5B80B]"></span><span className="text-xs font-bold text-slate-300">Pend: {qtdPendentes}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#20B2AA] print:bg-slate-900"></span><span className="text-xs font-bold text-slate-300 print:text-slate-700">Env: {qtdEnviados}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#E5B80B] print:bg-slate-400"></span><span className="text-xs font-bold text-slate-300 print:text-slate-700">Pend: {qtdPendentes}</span></div>
                     </div>
                  </div>
-                 <div className="w-14 h-14 rounded-full shrink-0 shadow-inner border border-slate-700" style={{ background: `conic-gradient(#20B2AA 0% ${pctPizzaEnviados}%, #E5B80B ${pctPizzaEnviados}% 100%)` }}></div>
+                 <div className="w-14 h-14 rounded-full shrink-0 shadow-inner border border-slate-700 print:border-slate-300" style={{ background: `conic-gradient(var(--tw-colors-slate-900, #1e293b) 0% ${pctPizzaEnviados}%, var(--tw-colors-slate-300, #cbd5e1) ${pctPizzaEnviados}% 100%)` }}></div>
               </div>
             </div>
 
             <div>
-              <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
-                <span>Pressão de Demanda (Solicitado vs Adquirido)</span>
+              <div className="flex justify-between text-sm font-bold text-slate-300 print:text-slate-700 mb-2">
+                <span>Pressão de Demanda (Solicitado pelo Filtro vs Adquirido Global)</span>
                 <span className={percentualGlobalEstoque > 90 ? 'text-[#DC143C]' : percentualGlobalEstoque > 50 ? 'text-[#E5B80B]' : 'text-[#20B2AA]'}>
                   {percentualGlobalEstoque.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative mb-6">
-                <div className={`h-4 rounded-full transition-all ${percentualGlobalEstoque > 90 ? 'bg-[#DC143C]' : percentualGlobalEstoque > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.min(percentualGlobalEstoque, 100)}%` }}></div>
+              <div className="w-full bg-slate-800 print:bg-slate-200 rounded-full h-4 overflow-hidden relative mb-6">
+                <div className={`h-4 rounded-full transition-all ${percentualGlobalEstoque > 90 ? 'bg-[#DC143C]' : percentualGlobalEstoque > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA] print:bg-slate-900'}`} style={{ width: `${Math.min(percentualGlobalEstoque, 100)}%` }}></div>
                 {percentualGlobalEstoque > 100 && (
                    <div className="absolute top-0 right-0 h-full bg-[#DC143C]/50 w-full animate-pulse"></div>
                 )}
               </div>
               
-              <div className="pt-4 border-t border-slate-700">
-                <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
-                  <span>Saída Natural (Escoamento não registrado)</span>
+              {/* SAÍDA NATURAL */}
+              <div className="pt-4 border-t border-slate-700 print:border-slate-200">
+                <div className="flex justify-between text-sm font-bold text-slate-300 print:text-slate-700 mb-2">
+                  <span>Saída Natural (Escoamento Global Não Registrado)</span>
                   <span className={saidaNatural > 0 ? 'text-[#DC143C]' : 'text-[#20B2AA]'}>
                     {saidaNatural} un. ({pctSaidaNatural.toFixed(1)}%)
                   </span>
                 </div>
-                <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative mb-1">
-                  <div className={`h-4 rounded-full transition-all ${saidaNatural > 0 ? 'bg-[#DC143C]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.max(0, Math.min(pctSaidaNatural, 100))}%` }}></div>
+                <div className="w-full bg-slate-800 print:bg-slate-200 rounded-full h-4 overflow-hidden relative mb-1">
+                  <div className={`h-4 rounded-full transition-all ${saidaNatural > 0 ? 'bg-[#DC143C]' : 'bg-[#20B2AA] print:bg-slate-900'}`} style={{ width: `${Math.max(0, Math.min(pctSaidaNatural, 100))}%` }}></div>
                 </div>
-                <p className="text-xs text-slate-400">Diferença física que não passou por pedidos do aplicativo em relação ao total adquirido.</p>
-              </div>
-
-              <div className="pt-4 mt-4 border-t border-slate-700">
-                <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
-                  <span>Saída Total (Pedidos App + Escoamento vs Adquirido)</span>
-                  <span className={pctSaidaTotalGeral > 90 ? 'text-[#DC143C]' : pctSaidaTotalGeral > 50 ? 'text-[#E5B80B]' : 'text-[#20B2AA]'}>
-                    {totalSaidasReal} un. ({pctSaidaTotalGeral.toFixed(1)}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden flex relative mb-2">
-                  <div className="h-4 bg-[#E5B80B] transition-all" style={{ width: `${Math.max(0, Math.min(pctDemandaRelativa, 100) * (Math.min(pctSaidaTotalGeral, 100) / 100))}%` }} title={`Pedidos do App`}></div>
-                  <div className="h-4 bg-[#DC143C] transition-all" style={{ width: `${Math.max(0, Math.min(pctNaturalRelativa, 100) * (Math.min(pctSaidaTotalGeral, 100) / 100))}%` }} title={`Escoamento`}></div>
-                </div>
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-[#E5B80B]">Pedidos App: {pctDemandaRelativa.toFixed(1)}%</span>
-                  <span className="text-[#DC143C]">Escoamento: {pctNaturalRelativa.toFixed(1)}%</span>
-                </div>
+                <p className="text-xs text-slate-400 print:text-slate-500">Diferença física que não passou pelo sistema (independe dos filtros regionais).</p>
               </div>
             </div>
             
-            <div className="mt-8 pt-6 border-t border-slate-700">
-              <h3 className="font-bold text-sm uppercase text-slate-400 mb-4">Principais Destinos Atendidos</h3>
+            <div className="mt-8 pt-6 border-t border-slate-700 print:border-slate-200">
+              <h3 className="font-bold text-sm uppercase text-slate-400 print:text-slate-500 mb-4">Principais Destinos (Filtro Atual)</h3>
               <div className="flex flex-wrap gap-2">
                 {sortedLocaisStats.length > 0 ? sortedLocaisStats.map(([loc, count]) => (
                   <button 
@@ -1237,23 +1292,23 @@ export default function App() {
                       setActiveTab('dashboard');
                       window.scrollTo(0,0);
                     }}
-                    className="px-3 py-1 bg-slate-800 text-slate-300 hover:bg-[#20B2AA] hover:text-white transition-colors rounded-md text-xs font-bold border border-slate-700 cursor-pointer flex items-center gap-1"
+                    className="px-3 py-1 bg-slate-800 print:bg-slate-100 text-slate-300 print:text-slate-800 hover:bg-[#20B2AA] hover:text-white transition-colors rounded-md text-xs font-bold border border-slate-700 print:border-slate-300 cursor-pointer flex items-center gap-1 print:pointer-events-none"
                   >
                     {loc} <span className="opacity-60">({count})</span>
                   </button>
-                )) : <span className="text-slate-500 text-sm">Nenhum local registrado ainda.</span>}
+                )) : <span className="text-slate-500 text-sm">Nenhum local encontrado nos filtros.</span>}
               </div>
             </div>
           </div>
 
-          {}
-          <div className="bg-white rounded-2xl border-2 border-slate-800 p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] relative z-0">
+          {/* GRÁFICO DE LINHA DO TEMPO NO DASHBOARD */}
+          <div className="bg-white rounded-2xl border-2 border-slate-800 p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] relative z-0 print:shadow-none print:break-inside-avoid">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b-2 border-slate-200 pb-4 mb-6">
                 <div>
-                   <h2 className="text-2xl font-black text-slate-900">Evolução das Entregas</h2>
-                   <p className="text-slate-500 text-sm mt-1">Acompanhe a demanda dos materiais ao longo do tempo.</p>
+                   <h2 className="text-2xl font-black text-slate-900">Evolução das Entregas (Filtrado)</h2>
+                   <p className="text-slate-500 text-sm mt-1">Acompanhe a demanda dos materiais sobre os dados filtrados.</p>
                 </div>
-                <div className="flex gap-4 mt-4 md:mt-0 bg-slate-100 p-1.5 rounded-lg border border-slate-200">
+                <div className="flex gap-4 mt-4 md:mt-0 bg-slate-100 p-1.5 rounded-lg border border-slate-200 print:hidden">
                    <label className={`cursor-pointer px-4 py-2 rounded-md font-bold text-sm transition-colors ${chartDateField === 'data' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>
                       <input type="radio" className="hidden" value="data" checked={chartDateField === 'data'} onChange={() => setChartDateField('data')} /> Data do Pedido
                    </label>
@@ -1264,23 +1319,24 @@ export default function App() {
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="lg:col-span-1 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col max-h-[350px]">
+                <div className="lg:col-span-1 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col max-h-[350px] print:hidden">
                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
                       <span className="font-black text-slate-800 text-sm uppercase tracking-wider">Materiais</span>
                       <div className="space-x-2">
-                         <button onClick={() => setSelectedChartMaterials(estoque.map(i => i.nome))} className="text-xs text-[#20B2AA] hover:underline font-bold">Todos</button>
-                         <button onClick={() => setSelectedChartMaterials([])} className="text-xs text-[#DC143C] hover:underline font-bold">Nenhum</button>
+                         <button onClick={() => { setChartMode('TOTAL'); setSelectedChartMaterials([]); }} className={`text-xs font-bold ${chartMode === 'TOTAL' ? 'text-slate-900 underline' : 'text-[#20B2AA] hover:underline'}`}>Soma Total</button>
+                         <button onClick={() => { setChartMode('SELECTION'); setSelectedChartMaterials([]); }} className={`text-xs font-bold ${chartMode === 'SELECTION' && selectedChartMaterials.length === 0 ? 'text-slate-900 underline' : 'text-[#DC143C] hover:underline'}`}>Limpar</button>
                       </div>
                    </div>
                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                       {estoque.length === 0 ? <p className="text-xs text-slate-400">Carregando...</p> : 
                        estoque.map((item, index) => {
-                          const isSelected = selectedChartMaterials.includes(item.nome);
+                          const isSelected = chartMode === 'SELECTION' && selectedChartMaterials.includes(item.nome);
                           const color = chartColors[index % chartColors.length];
                           return (
                              <label key={item.id} className="flex items-center space-x-3 cursor-pointer group hover:bg-slate-100 p-1.5 rounded">
                                 <input type="checkbox" checked={isSelected} 
                                    onChange={() => {
+                                      setChartMode('SELECTION');
                                       if(isSelected) setSelectedChartMaterials(prev => prev.filter(m => m !== item.nome));
                                       else setSelectedChartMaterials(prev => [...prev, item.nome]);
                                    }} 
@@ -1298,7 +1354,7 @@ export default function App() {
                    {sortedChartDates.length === 0 ? (
                       <p className="text-slate-400 font-bold">Nenhum dado encontrado para os filtros e datas atuais.</p>
                    ) : (
-                      <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full min-w-[600px] h-auto drop-shadow-sm">
+                      <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full min-w-[600px] h-auto drop-shadow-sm print:drop-shadow-none">
                          {/* Eixos Grid */}
                          {[0, 0.25, 0.5, 0.75, 1].map(ratio => {
                              const y = chartH - padY - (plotH * ratio);
@@ -1321,10 +1377,13 @@ export default function App() {
                          ))}
                          
                          {/* Linhas SVG Geradas */}
-                         {selectedChartMaterials.map(mat => {
-                             const matIndex = estoque.findIndex(e => e.nome === mat);
-                             if (matIndex === -1) return null;
-                             const color = chartColors[matIndex % chartColors.length];
+                         {linesToDraw.map(mat => {
+                             const isTotal = mat === 'TOTAL';
+                             let color = '#1E293B'; // Escuro para TOTAL
+                             if (!isTotal) {
+                                 const matIndex = estoque.findIndex(e => e.nome === mat);
+                                 if (matIndex !== -1) color = chartColors[matIndex % chartColors.length];
+                             }
                              
                              const points = sortedChartDates.map((d, index) => {
                                  const val = chartDataMap[d][mat] || 0;
@@ -1343,7 +1402,7 @@ export default function App() {
                                          const y = chartH - padY - (val / maxVal) * plotH;
                                          return (
                                            <circle key={`${mat}-${d}`} cx={x} cy={y} r="5" fill={color} className="transition-all group-hover:r-6 stroke-white stroke-2">
-                                              <title>{`${mat}\nData: ${d.split('-').reverse().join('/')}\nQuantidade: ${val}`}</title>
+                                              <title>{`${isTotal ? 'Soma Total' : mat}\nData: ${d.split('-').reverse().join('/')}\nQuantidade: ${val}`}</title>
                                            </circle>
                                          );
                                      })}
@@ -1356,7 +1415,7 @@ export default function App() {
              </div>
           </div>
 
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
              {estoqueViewConfig.mode === 'cards' ? (
                 <div className="flex items-center space-x-2 w-full md:w-auto">
                   <span className="font-bold text-slate-500 text-xs uppercase">Ordenar por:</span>
@@ -1378,26 +1437,27 @@ export default function App() {
              ) : <div className="w-full md:w-auto" />}
              
              <div className="flex gap-2 w-full md:w-auto">
+               <button onClick={handleExportCSV} className="p-3 md:p-2 flex-1 md:flex-none flex items-center justify-center gap-2 rounded-lg border-2 bg-[#20B2AA]/10 text-[#008080] border-[#20B2AA]/30 hover:bg-[#20B2AA]/20 font-bold transition-colors"><IconDownload /><span className="hidden md:inline">CSV</span></button>
+               <button onClick={handleExportPDF} className="p-3 md:p-2 flex-1 md:flex-none flex items-center justify-center gap-2 rounded-lg border-2 bg-[#DC143C]/10 text-[#DC143C] border-[#DC143C]/30 hover:bg-[#DC143C]/20 font-bold transition-colors"><IconPDF /><span className="hidden md:inline">PDF</span></button>
                <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'list'})} className={`p-3 md:p-2 flex-1 md:flex-none flex justify-center rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconList /></button>
                <button onClick={() => setEstoqueViewConfig({...estoqueViewConfig, mode: 'cards'})} className={`p-3 md:p-2 flex-1 md:flex-none flex justify-center rounded-lg border-2 transition-colors ${estoqueViewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}><IconGrid /></button>
              </div>
           </div>
 
-          {/* Tabela/Cards de Estoque */}
           {loadingEstoque ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
                <GradientSpinner className="w-12 h-12 mb-4" />
                Buscando Estoque...
             </div>
           ) : estoqueViewConfig.mode === 'list' ? (
-            <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)]">
+            <div className="overflow-x-auto bg-white rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] print:shadow-none">
                <table className="w-full text-left text-sm border-collapse min-w-[900px]">
                  <thead>
                    <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-600 uppercase text-xs">
                      <EstoqueSortHeader label="Material" field="nome" className="border-r border-slate-200" />
                      <EstoqueSortHeader label="Adquirido" field="totalAdquirido" className="text-center border-r border-slate-200 bg-slate-50" />
-                     <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">Demanda (Ped.)</th>
-                     <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">% Demanda</th>
+                     <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">Demanda (Filtro)</th>
+                     <th className="p-4 font-black text-center border-r border-slate-200 text-slate-500">% Demanda (Filtro)</th>
                      {(() => {
                        const levasAtivasGlobais = levasHeaders.filter(l => 
                          activeEstoque.some(item => (item.levas[l] || 0) > 0)
@@ -1411,7 +1471,7 @@ export default function App() {
                  </thead>
                  <tbody>
                    {activeEstoque.length === 0 && (
-                     <tr><td colSpan="10" className="p-8 text-center text-slate-500 font-bold">Nenhum material encontrado com este filtro/busca.</td></tr>
+                     <tr><td colSpan="10" className="p-8 text-center text-slate-500 font-bold">Nenhum material encontrado.</td></tr>
                    )}
                    {activeEstoque.map(item => {
                      const demandaIt = aggregatedRequests[item.nome] || 0;
@@ -1424,7 +1484,7 @@ export default function App() {
                      );
 
                      return (
-                       <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50">
+                       <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50 print:break-inside-avoid">
                          <td className="p-4 border-r border-slate-100">
                            <p className="font-bold text-slate-800">{item.nome}</p>
                          </td>
@@ -1453,8 +1513,8 @@ export default function App() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                {activeEstoque.length === 0 && (
-                 <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed">
-                    Nenhum material encontrado com este filtro/busca.
+                 <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed print:hidden">
+                    Nenhum material encontrado.
                  </div>
                )}
                {activeEstoque.map(item => {
@@ -1465,7 +1525,7 @@ export default function App() {
                  const demandBgClass = pctDemanda > 90 ? 'bg-[#DC143C]' : pctDemanda > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA]';
 
                  return (
-                   <div key={item.id} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] flex flex-col justify-between">
+                   <div key={item.id} className="bg-white rounded-2xl border-2 border-slate-800 p-5 shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] flex flex-col justify-between print:shadow-none print:break-inside-avoid">
                      <div>
                        <h3 className="font-bold text-slate-800 text-lg leading-tight mb-4 pb-3 border-b border-slate-200">{item.nome}</h3>
                        <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1483,7 +1543,7 @@ export default function App() {
                        
                        <div className="mb-4 pt-3 border-t border-slate-100">
                          <div className="flex justify-between items-center mb-1">
-                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Demanda (Solicitado)</span>
+                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Demanda (Filtro Atual)</span>
                            <span className={`text-sm font-black ${demandTextClass}`}>{demandaIt} un. ({pctDemanda.toFixed(0)}%)</span>
                          </div>
                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -1493,7 +1553,7 @@ export default function App() {
 
                      </div>
                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 mt-auto">
-                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas</p>
+                       <p className="text-xs font-bold text-slate-500 uppercase mb-2">Entradas (Levas)</p>
                        <div className="space-y-1">
                          {(() => {
                            const levasAtivasDoItem = levasHeaders.filter(l => (item.levas[l] || 0) > 0);
@@ -1520,7 +1580,7 @@ export default function App() {
       {}
       {/* MODAL DE STATUS RÁPIDO */}
       {modalStatus.show && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(32,178,170,1)] animate-in fade-in zoom-in-95 duration-200">
             {modalStatus.error && (
               <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
@@ -1562,7 +1622,7 @@ export default function App() {
 
       {/* MODAL FICHA RESUMIDA (Visualização) */}
       {modalViewOrder.show && modalViewOrder.order && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-lg w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
              <div className="flex justify-between items-start border-b-2 border-slate-200 pb-4 mb-4">
                 <div>
@@ -1612,7 +1672,7 @@ export default function App() {
 
       {/* MODAL DE CONFIRMAÇÃO (Novo e Edição) */}
       {(modalEditConfirm.show || modalNewConfirm.show) && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
             
             {(modalEditConfirm.error || modalNewConfirm.error) && (
@@ -1675,7 +1735,7 @@ export default function App() {
 
       {/* MODAL NOVA LEVA (Estoque) */}
       {modalLeva.show && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-[8px_8px_0px_0px_rgba(229,184,11,1)] animate-in fade-in zoom-in-95 duration-200">
             {modalLeva.error && (
               <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
