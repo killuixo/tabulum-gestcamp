@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// === ÍCONES SVG ===
 const IconUser = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const IconUsers = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
 const IconPackage = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"></path><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>;
@@ -16,6 +15,7 @@ const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="non
 const IconFilter = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>;
 const IconChevronDown = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>;
 const IconChevronUp = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>;
+const IconSearch = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
 
 const GradientSpinner = ({ className = "w-10 h-10" }) => (
   <svg className={`animate-spin ${className}`} viewBox="0 0 50 50">
@@ -55,9 +55,14 @@ export default function App() {
   const [viewConfig, setViewConfig] = useState({ mode: 'cards', sort: 'data_desc', page: 1, detailFilter: null });
   const [estoqueViewConfig, setEstoqueViewConfig] = useState({ mode: 'cards', sortField: 'nome', sortDir: 'asc' });
   
+  // Novos Estados Globais e de Gráficos
+  const [globalSearch, setGlobalSearch] = useState('');
   const [showDashboardFilters, setShowDashboardFilters] = useState(false);
   const [dashboardStatus, setDashboardStatus] = useState('TODOS');
   const [estoqueStatusFilter, setEstoqueStatusFilter] = useState('TODOS');
+  
+  const [chartDateField, setChartDateField] = useState('data'); // 'data' ou 'dataAgendada'
+  const [selectedChartMaterials, setSelectedChartMaterials] = useState([]);
   
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
@@ -75,19 +80,29 @@ export default function App() {
   const [mensagemLista, setMensagemLista] = useState(null);
   
   const [filters, setFilters] = useState({ articulador: [], lideranca: [], local: [] });
-  const [modalStatus, setModalStatus] = useState({ show: false, step: 1, order: null, newStatus: '' });
-  const [modalEditConfirm, setModalEditConfirm] = useState({ show: false, step: 1, changesSummary: [] });
-  const [modalNewConfirm, setModalNewConfirm] = useState({ show: false, changesSummary: [] });
+  const [modalStatus, setModalStatus] = useState({ show: false, step: 1, order: null, newStatus: '', error: null });
+  const [modalEditConfirm, setModalEditConfirm] = useState({ show: false, step: 1, changesSummary: [], error: null });
+  const [modalNewConfirm, setModalNewConfirm] = useState({ show: false, changesSummary: [], error: null });
   const [modalViewOrder, setModalViewOrder] = useState({ show: false, order: null });
-  const [modalLeva, setModalLeva] = useState({ show: false, step: 1, nome: '', itens: {} });
+  const [modalLeva, setModalLeva] = useState({ show: false, step: 1, nome: '', itens: {}, error: null });
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'novo_pedido' && estoque.length === 0) fetchStockData();
-    if (activeTab === 'dashboard') fetchPedidosData();
+    if (activeTab === 'dashboard' && listaPedidos.length === 0) fetchPedidosData(); // Antigo Painel
     if (activeTab === 'editar_pedido' && estoque.length === 0) fetchStockData();
-    if (activeTab === 'estoque') { fetchStockData(); fetchPedidosData(); }
+    if (activeTab === 'estoque') { // Antigo Estoque (Agora Dashboard)
+       if (estoque.length === 0) fetchStockData(); 
+       if (listaPedidos.length === 0) fetchPedidosData(); 
+    }
   }, [activeTab]);
+
+  useEffect(() => {
+    // Inicializa todos os materiais como selecionados no gráfico assim que o estoque carregar
+    if (estoque.length > 0 && selectedChartMaterials.length === 0) {
+      setSelectedChartMaterials(estoque.map(i => i.nome));
+    }
+  }, [estoque]);
 
   const fetchStockData = async () => {
     setLoadingEstoque(true);
@@ -149,6 +164,8 @@ export default function App() {
   const processSubmit = async (isEditMode = false) => {
     setSubmitting(true);
     setMensagem(null);
+    if (isEditMode) setModalEditConfirm(prev => ({...prev, error: null}));
+    else setModalNewConfirm(prev => ({...prev, error: null}));
 
     const materiaisSolicitados = estoque.filter(i => pedidos[i.id] > 0).map(i => ({ 
       nome: i.nome, 
@@ -180,16 +197,16 @@ export default function App() {
       if (result.status === 'error') throw new Error(result.message);
       
       if (isEditMode) {
-        setModalEditConfirm({ show: false, step: 1, changesSummary: [] });
+        setModalEditConfirm({ show: false, step: 1, changesSummary: [], error: null });
         setActiveTab('dashboard'); 
         fetchPedidosData(); 
       } else {
-        setModalNewConfirm({show: false, summary: null});
+        setModalNewConfirm({show: false, summary: null, error: null});
         setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
         resetForm();
       }
     } catch (error) {
-      if (isEditMode) alert(`Falha ao salvar edição: ${error.message}`);
+      if (isEditMode) setModalEditConfirm(prev => ({...prev, error: `Falha ao salvar edição: ${error.message}`}));
       else setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
     } finally {
       setSubmitting(false);
@@ -222,9 +239,9 @@ export default function App() {
     ];
 
     if (activeTab === 'editar_pedido') {
-      setModalEditConfirm({ show: true, step: 1, changesSummary: summary });
+      setModalEditConfirm({ show: true, step: 1, changesSummary: summary, error: null });
     } else {
-      setModalNewConfirm({ show: true, changesSummary: summary });
+      setModalNewConfirm({ show: true, changesSummary: summary, error: null });
     }
   };
 
@@ -278,6 +295,7 @@ export default function App() {
 
   const handleCreateLeva = async () => {
     setUpdatingStatus(true);
+    setModalLeva(prev => ({...prev, error: null}));
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const payload = { action: 'nova_leva', nomeLeva: modalLeva.nome, quantidadesLeva: modalLeva.itens };
@@ -285,10 +303,10 @@ export default function App() {
       const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       
-      setModalLeva({ show: false, step: 1, nome: '', itens: {} });
+      setModalLeva({ show: false, step: 1, nome: '', itens: {}, error: null });
       fetchStockData();
     } catch (error) {
-      alert("Erro ao criar leva: " + error.message);
+      setModalLeva(prev => ({...prev, error: error.message}));
     } finally {
       setUpdatingStatus(false);
     }
@@ -296,6 +314,7 @@ export default function App() {
 
   const confirmStatusChange = async () => {
     setUpdatingStatus(true);
+    setModalStatus(prev => ({...prev, error: null}));
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const payload = { action: 'update_status', row: modalStatus.order.row, status: modalStatus.newStatus };
@@ -304,12 +323,12 @@ export default function App() {
       if (result.status === 'error') throw new Error(result.message);
       
       setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
-      setModalStatus({ show: false, step: 1, order: null, newStatus: '' });
+      setModalStatus({ show: false, step: 1, order: null, newStatus: '', error: null });
       if (modalViewOrder.show) {
          setModalViewOrder(prev => ({...prev, order: {...prev.order, status: modalStatus.newStatus}}));
       }
     } catch (error) {
-      alert("Erro ao alterar status: " + error.message);
+      setModalStatus(prev => ({...prev, error: error.message}));
     } finally {
       setUpdatingStatus(false);
     }
@@ -358,14 +377,29 @@ export default function App() {
     return dataString;
   };
 
+  // getFilteredAndSortedPedidos agora processa Busca Universal e Filtros Avançados
   const getFilteredAndSortedPedidos = () => {
     let filtered = [...listaPedidos];
     
+    // Filtro de detalhe (ao clicar num nome)
     if (viewConfig.detailFilter) {
       filtered = filtered.filter(p => {
         const val = viewConfig.detailFilter.type === 'enderecoRecebimento' ? getMunicipioString(p.enderecoRecebimento) : p[viewConfig.detailFilter.type];
         return (val || '').trim() === viewConfig.detailFilter.value;
       });
+    }
+
+    // Busca universal
+    if (globalSearch.trim()) {
+      const s = globalSearch.toLowerCase();
+      filtered = filtered.filter(p => 
+        (p.articuladorNome && p.articuladorNome.toLowerCase().includes(s)) ||
+        (p.liderancaNome && p.liderancaNome.toLowerCase().includes(s)) ||
+        (p.enderecoRecebimento && p.enderecoRecebimento.toLowerCase().includes(s)) ||
+        (p.materiais && p.materiais.toLowerCase().includes(s)) ||
+        (p.row && String(p.row).includes(s)) ||
+        (p.modoRecebimento && p.modoRecebimento.toLowerCase().includes(s))
+      );
     }
 
     if (dashboardStatus !== 'TODOS') {
@@ -411,14 +445,13 @@ export default function App() {
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
   let globalTotalSolicitado = 0;
-  let absoluteTotalSolicitado = 0; // Independe de filtro de status
+  let absoluteTotalSolicitado = 0; 
 
   estoque.forEach(item => {
     globalTotalAdquirido += Number(item.totalAdquirido) || 0;
     globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
-  // 1. Calcula os totais baseados no filtro (para pressão de demanda do card superior)
   const pedidosParaEstoque = listaPedidos.filter(p => {
     if (estoqueStatusFilter === 'TODOS') return true;
     return (p.status || 'PENDENTE').toUpperCase() === estoqueStatusFilter;
@@ -436,7 +469,6 @@ export default function App() {
     });
   });
 
-  // 2. Calcula o total absoluto de tudo que foi pedido no sistema para a Saída Natural
   listaPedidos.forEach(pedido => {
     const qts = (pedido.quantidades || '').split('\n');
     qts.forEach(q => {
@@ -448,38 +480,77 @@ export default function App() {
   const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
   const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0;
   
-  // 3. Proporção das Saídas (Formal vs Natural)
   const totalSaidasReal = absoluteTotalSolicitado + saidaNatural;
   const pctDemandaRelativa = totalSaidasReal > 0 ? (absoluteTotalSolicitado / totalSaidasReal) * 100 : 0;
   const pctNaturalRelativa = totalSaidasReal > 0 ? (saidaNatural / totalSaidasReal) * 100 : 0;
-  
-  // 4. Saída Total Geral vs Total Adquirido (Novo Gráfico)
   const pctSaidaTotalGeral = globalTotalAdquirido > 0 ? (totalSaidasReal / globalTotalAdquirido) * 100 : 0;
   
-  // Gráfico de Pizza (Status)
   const qtdEnviados = listaPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
   const qtdPendentes = listaPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
   const totalStatus = qtdEnviados + qtdPendentes;
   const pctPizzaEnviados = totalStatus > 0 ? (qtdEnviados / totalStatus) * 100 : 0;
 
-  const activeEstoque = [...estoque].filter(item => Number(item.totalAdquirido) > 0).sort((a, b) => {
-    const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
-    if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
-    if (estoqueViewConfig.sortField === 'totalAdquirido') return (Number(a.totalAdquirido) - Number(b.totalAdquirido)) * dir;
-    if (estoqueViewConfig.sortField === 'disponivel') return (Number(a.disponivel) - Number(b.disponivel)) * dir;
-    return 0;
+  // Filtragem do Estoque List (respeitando a Busca Universal)
+  const activeEstoque = [...estoque]
+    .filter(item => Number(item.totalAdquirido) > 0)
+    .filter(item => !globalSearch.trim() || item.nome.toLowerCase().includes(globalSearch.toLowerCase()))
+    .sort((a, b) => {
+      const dir = estoqueViewConfig.sortDir === 'asc' ? 1 : -1;
+      if (estoqueViewConfig.sortField === 'nome') return String(a.nome).localeCompare(String(b.nome)) * dir;
+      if (estoqueViewConfig.sortField === 'totalAdquirido') return (Number(a.totalAdquirido) - Number(b.totalAdquirido)) * dir;
+      if (estoqueViewConfig.sortField === 'disponivel') return (Number(a.disponivel) - Number(b.disponivel)) * dir;
+      return 0;
   });
 
   const totalSolicitadoEdit = estoque.reduce((acc, item) => acc + (pedidos[item.id] || 0), 0);
   const totalEnviadoEdit = estoque.reduce((acc, item) => acc + (enviados[item.id] || 0), 0);
   const percentualEnviadoEdit = totalSolicitadoEdit > 0 ? Math.round((totalEnviadoEdit / totalSolicitadoEdit) * 100) : 0;
 
+  const chartDataMap = {};
+  sortedPedidos.forEach(pedido => {
+      let rawDate = pedido[chartDateField];
+      if (!rawDate) return;
+      
+      let dKey = rawDate.split(' ')[0]; 
+      if (dKey.includes('/')) {
+          const [d, m, y] = dKey.split('/');
+          dKey = `${y}-${m}-${d}`;
+      }
+      
+      if (!chartDataMap[dKey]) chartDataMap[dKey] = {};
+      
+      const mats = (pedido.materiais || '').split('\n');
+      const qts = (pedido.quantidades || '').split('\n');
+      mats.forEach((m, idx) => {
+          const matName = m.trim();
+          if (matName && selectedChartMaterials.includes(matName)) {
+             chartDataMap[dKey][matName] = (chartDataMap[dKey][matName] || 0) + (parseInt(qts[idx], 10) || 0);
+          }
+      });
+  });
+  
+  const sortedChartDates = Object.keys(chartDataMap).sort((a,b) => new Date(a) - new Date(b));
+  
+  const chartW = 900;
+  const chartH = 350;
+  const padX = 50;
+  const padY = 40;
+  const plotW = chartW - padX * 2;
+  const plotH = chartH - padY * 2;
+  
+  const maxVal = sortedChartDates.length > 0 
+    ? Math.max(...sortedChartDates.flatMap(d => Object.values(chartDataMap[d] || {})).concat([10])) 
+    : 10;
+  const stepX = sortedChartDates.length > 1 ? plotW / (sortedChartDates.length - 1) : plotW;
+  
+  const chartColors = ['#E5B80B', '#DC143C', '#20B2AA', '#4F46E5', '#E11D48', '#059669', '#D97706', '#7C3AED', '#2563EB', '#BE123C', '#0ea5e9', '#ec4899', '#f97316'];
+
   const EntityLink = ({ type, label }) => {
     const val = type === 'enderecoRecebimento' ? getMunicipioString(label) : label;
     const trimmedLabel = (val || '').trim();
     if (!trimmedLabel || trimmedLabel === 'Não Informado') return <span>{val || 'Não Informado'}</span>;
     return (
-      <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: trimmedLabel }, page: 1}); window.scrollTo(0,0); }} 
+      <span onClick={(e) => { e.stopPropagation(); setViewConfig({...viewConfig, detailFilter: { type, value: trimmedLabel }, page: 1}); setActiveTab('dashboard'); window.scrollTo(0,0); }} 
             className="text-slate-900 font-bold border-b-2 border-transparent hover:border-[#20B2AA] hover:text-[#20B2AA] cursor-pointer transition-colors relative z-10">
         {type === 'enderecoRecebimento' ? (
            <span className="flex flex-col">
@@ -494,7 +565,7 @@ export default function App() {
   const StatusBadge = ({ pedido }) => {
     const isEnviado = String(pedido.status || '').toUpperCase() === 'ENVIADO';
     return (
-      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'PENDENTE' : 'ENVIADO' }); }}
+      <button onClick={(e) => { e.stopPropagation(); setModalStatus({ show: true, step: 1, order: pedido, newStatus: isEnviado ? 'PENDENTE' : 'ENVIADO', error: null }); }}
               className={`relative z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border-2 transition-transform hover:scale-105 ${isEnviado ? 'bg-[#20B2AA]/20 text-[#008080] border-[#20B2AA]' : 'bg-[#E5B80B]/20 text-[#B8860B] border-[#E5B80B]'}`}>
         {pedido.status || 'PENDENTE'}
       </button>
@@ -535,32 +606,124 @@ export default function App() {
       <datalist id="list-liderancas">{uniqueLiderancas.map((a, i) => <option key={i} value={a} />)}</datalist>
       <datalist id="list-locais">{uniqueLocais.map((a, i) => <option key={i} value={a} />)}</datalist>
 
-      {/* Navegação de Abas / Header */}
-      <div className="max-w-6xl mx-auto mb-8 flex flex-col lg:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3 md:gap-5 mb-4 lg:mb-0">
-          <img 
-            src="https://raw.githubusercontent.com/killuixo/tabulum-gestcamp/refs/heads/main/icon-192.png" 
-            alt="Tabulum Logo" 
-            className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-xl shadow-sm border-2 border-slate-900"
-          />
-          <div className="flex flex-col pt-1">
-            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 pb-1 mb-1 leading-none">
-              TABULUM
-            </h1>
-            <div className="flex justify-between w-full text-[0.55rem] md:text-[0.65rem] font-black text-slate-600 uppercase tracking-[0.1em]">
-              <span>Gestão</span><span>de</span><span>Material</span><span>de</span><span>Campanha</span>
+      {}
+      <div className="max-w-6xl mx-auto mb-6">
+        <div className="flex flex-col lg:flex-row justify-between items-center gap-6 mb-6">
+          <div className="flex items-center gap-3 md:gap-5">
+            <img 
+              src="https://raw.githubusercontent.com/killuixo/tabulum-gestcamp/refs/heads/main/icon-192.png" 
+              alt="Tabulum Logo" 
+              className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-xl shadow-sm border-2 border-slate-900"
+            />
+            <div className="flex flex-col pt-1">
+              <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight uppercase border-b-4 border-slate-900 pb-1 mb-1 leading-none">
+                TABULUM
+              </h1>
+              <div className="flex justify-between w-full text-[0.55rem] md:text-[0.65rem] font-black text-slate-600 uppercase tracking-[0.1em]">
+                <span>Gestão</span><span>de</span><span>Material</span><span>de</span><span>Campanha</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
+            {/* Busca Universal */}
+            <div className="flex bg-white rounded-xl shadow-inner border-2 border-slate-300 p-1 w-full sm:w-64 relative items-center transition-all focus-within:border-slate-900 focus-within:shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]">
+              <input 
+                type="text" 
+                value={globalSearch} 
+                onChange={e => setGlobalSearch(e.target.value)} 
+                placeholder="Busca Universal..." 
+                className="w-full bg-transparent outline-none pl-4 pr-10 py-2 font-bold text-slate-700 placeholder:text-slate-400" 
+              />
+              <div className="absolute right-3 text-slate-400"><IconSearch /></div>
+            </div>
+
+            <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner border-2 border-slate-300 flex-wrap justify-center gap-1 w-full sm:w-auto">
+              <button onClick={() => {resetForm(); setActiveTab('novo_pedido');}} className={`px-4 md:px-5 py-2 rounded-lg font-bold transition-all ${activeTab === 'novo_pedido' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Novo Pedido</button>
+              <button onClick={() => {setActiveTab('dashboard');}} className={`px-4 md:px-5 py-2 rounded-lg font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Pedidos</button>
+              <button onClick={() => {setActiveTab('estoque');}} className={`px-4 md:px-5 py-2 rounded-lg font-bold transition-all ${activeTab === 'estoque' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Dashboard</button>
             </div>
           </div>
         </div>
-        <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner border-2 border-slate-300 flex-wrap justify-center gap-1">
-          <button onClick={() => {resetForm(); setActiveTab('novo_pedido');}} className={`px-4 md:px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'novo_pedido' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Novo Pedido</button>
-          <button onClick={() => {setActiveTab('dashboard');}} className={`px-4 md:px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Painel de Pedidos</button>
-          <button onClick={() => {setActiveTab('estoque');}} className={`px-4 md:px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'estoque' ? 'bg-white text-slate-900 shadow-sm border border-slate-300' : 'text-slate-500 hover:text-slate-700'}`}>Estoque</button>
-        </div>
+
+        {}
+        {(activeTab === 'dashboard' || activeTab === 'estoque') && (
+           <div className="bg-white p-4 md:p-6 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] space-y-4 mb-6 animate-in slide-in-from-top-2">
+             <div className="flex justify-between items-center cursor-pointer select-none bg-slate-100 p-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition" onClick={() => setShowDashboardFilters(!showDashboardFilters)}>
+                <div className="flex items-center gap-2 font-black text-slate-700">
+                  <IconFilter />
+                  <span className="uppercase tracking-widest text-sm">Filtros Avançados Globais</span>
+                </div>
+                <div className="text-slate-500">
+                  {showDashboardFilters ? <IconChevronUp /> : <IconChevronDown />}
+                </div>
+             </div>
+
+             {showDashboardFilters && (
+               <div className="pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                   <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 border-b border-slate-200 pb-2">Status</h3>
+                   <div className="space-y-3">
+                     {['TODOS', 'PENDENTE', 'ENVIADO'].map(st => (
+                       <label key={st} className="flex items-center space-x-3 cursor-pointer group">
+                         <input type="radio" checked={dashboardStatus === st} onChange={() => setDashboardStatus(st)} className={`w-5 h-5 ${st === 'ENVIADO' ? 'accent-[#20B2AA]' : st === 'PENDENTE' ? 'accent-[#E5B80B]' : 'accent-slate-800'}`} />
+                         <span className="text-sm font-bold text-slate-700">{st}</span>
+                       </label>
+                     ))}
+                   </div>
+                 </div>
+
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                   <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 flex justify-between border-b border-slate-200 pb-2">
+                     Articuladores <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueArticuladores.length}</span>
+                   </h3>
+                   <div className="max-h-40 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                     {uniqueArticuladores.map(nome => (
+                       <label key={nome} className="flex items-center space-x-3 cursor-pointer group">
+                         <input type="checkbox" checked={filters.articulador.includes(nome)} onChange={() => toggleFilter('articulador', nome)} className="w-5 h-5 rounded text-[#20B2AA] focus:ring-[#20B2AA]" />
+                         <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
+                       </label>
+                     ))}
+                     {uniqueArticuladores.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
+                   </div>
+                 </div>
+
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                   <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 flex justify-between border-b border-slate-200 pb-2">
+                     Lideranças <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLiderancas.length}</span>
+                   </h3>
+                   <div className="max-h-40 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                     {uniqueLiderancas.map(nome => (
+                       <label key={nome} className="flex items-center space-x-3 cursor-pointer group">
+                         <input type="checkbox" checked={filters.lideranca.includes(nome)} onChange={() => toggleFilter('lideranca', nome)} className="w-5 h-5 rounded text-[#E5B80B] focus:ring-[#E5B80B]" />
+                         <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
+                       </label>
+                     ))}
+                     {uniqueLiderancas.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
+                   </div>
+                 </div>
+
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                   <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 flex justify-between border-b border-slate-200 pb-2">
+                     Destinos <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLocais.length}</span>
+                   </h3>
+                   <div className="max-h-40 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                     {uniqueLocais.map(nome => (
+                       <label key={nome} className="flex items-center space-x-3 cursor-pointer group">
+                         <input type="checkbox" checked={filters.local.includes(nome)} onChange={() => toggleFilter('local', nome)} className="w-5 h-5 rounded text-[#DC143C] focus:ring-[#DC143C]" />
+                         <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
+                       </label>
+                     ))}
+                     {uniqueLocais.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
+                   </div>
+                 </div>
+               </div>
+             )}
+           </div>
+        )}
       </div>
 
       {}
-      {/* FORMULÁRIO */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300">
           
@@ -570,7 +733,7 @@ export default function App() {
                  <span className="text-[#E5B80B] font-bold uppercase tracking-widest text-sm">Modo de Edição</span>
                  <h2 className="text-3xl font-black">Ficha do Pedido (L-{formData.row})</h2>
                </div>
-               <button type="button" onClick={() => setActiveTab('dashboard')} className="w-full md:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg font-bold transition text-center">Voltar ao Painel</button>
+               <button type="button" onClick={() => setActiveTab('dashboard')} className="w-full md:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg font-bold transition text-center">Voltar à Lista</button>
              </div>
           )}
 
@@ -826,7 +989,6 @@ export default function App() {
       )}
 
       {}
-      {/* DASHBOARD DE PEDIDOS */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
@@ -850,106 +1012,26 @@ export default function App() {
             </div>
           )}
 
-          <div className="bg-white p-4 md:p-6 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] space-y-4">
-            
-            {/* CABEÇALHO DO FILTRO (RETRÁTIL) */}
-            <div className="flex justify-between items-center cursor-pointer select-none bg-slate-100 p-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition" onClick={() => setShowDashboardFilters(!showDashboardFilters)}>
-               <div className="flex items-center gap-2 font-black text-slate-700">
-                 <IconFilter />
-                 <span className="uppercase tracking-widest text-sm">Filtros Avançados</span>
+          {/* Cabeçalho da Lista (Exibição e Modos de Visão) */}
+          <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl border-2 border-slate-800 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] gap-4">
+             <div className="font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-lg w-full sm:w-auto text-center">
+               Exibindo: <span className="text-slate-900">{sortedPedidos.length}</span> resultados
+             </div>
+             <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
+               <div className="flex items-center space-x-2 w-full sm:w-auto">
+                  <span className="font-bold text-slate-500 text-xs uppercase">Ordenar:</span>
+                  <select className="p-2 flex-1 sm:flex-none border-2 border-slate-300 rounded-lg bg-white font-bold text-sm text-slate-800 focus:outline-none focus:border-[#20B2AA]" value={viewConfig.sort} onChange={(e) => setViewConfig({...viewConfig, sort: e.target.value})}>
+                    <option value="data_desc">Data (Recentes)</option>
+                    <option value="data_asc">Data (Antigos)</option>
+                    <option value="agendamento_asc">Agendamento (Próximos)</option>
+                    <option value="agendamento_desc">Agendamento (Distantes)</option>
+                  </select>
                </div>
-               <div className="text-slate-500">
-                 {showDashboardFilters ? <IconChevronUp /> : <IconChevronDown />}
+               <div className="flex space-x-2 w-full sm:w-auto justify-center">
+                 <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
+                 <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
                </div>
-            </div>
-
-            {/* ÁREA RETRÁTIL DO FILTRO */}
-            {showDashboardFilters && (
-              <div className="pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
-                
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 border-b border-slate-200 pb-2">
-                    Status
-                  </h3>
-                  <div className="space-y-3">
-                    {['TODOS', 'PENDENTE', 'ENVIADO'].map(st => (
-                      <label key={st} className="flex items-center space-x-3 cursor-pointer group">
-                        <input type="radio" checked={dashboardStatus === st} onChange={() => setDashboardStatus(st)} className={`w-5 h-5 ${st === 'ENVIADO' ? 'accent-[#20B2AA]' : st === 'PENDENTE' ? 'accent-[#E5B80B]' : 'accent-slate-800'}`} />
-                        <span className="text-sm font-bold text-slate-700">{st}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 flex justify-between border-b border-slate-200 pb-2">
-                    Articuladores <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueArticuladores.length}</span>
-                  </h3>
-                  <div className="max-h-40 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-                    {uniqueArticuladores.map(nome => (
-                      <label key={nome} className="flex items-center space-x-3 cursor-pointer group">
-                        <input type="checkbox" checked={filters.articulador.includes(nome)} onChange={() => toggleFilter('articulador', nome)} className="w-5 h-5 rounded text-[#20B2AA] focus:ring-[#20B2AA]" />
-                        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
-                      </label>
-                    ))}
-                    {uniqueArticuladores.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 flex justify-between border-b border-slate-200 pb-2">
-                    Lideranças <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLiderancas.length}</span>
-                  </h3>
-                  <div className="max-h-40 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-                    {uniqueLiderancas.map(nome => (
-                      <label key={nome} className="flex items-center space-x-3 cursor-pointer group">
-                        <input type="checkbox" checked={filters.lideranca.includes(nome)} onChange={() => toggleFilter('lideranca', nome)} className="w-5 h-5 rounded text-[#E5B80B] focus:ring-[#E5B80B]" />
-                        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
-                      </label>
-                    ))}
-                    {uniqueLiderancas.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 flex justify-between border-b border-slate-200 pb-2">
-                    Destinos <span className="bg-slate-200 text-slate-600 px-2 rounded-full">{uniqueLocais.length}</span>
-                  </h3>
-                  <div className="max-h-40 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-                    {uniqueLocais.map(nome => (
-                      <label key={nome} className="flex items-center space-x-3 cursor-pointer group">
-                        <input type="checkbox" checked={filters.local.includes(nome)} onChange={() => toggleFilter('local', nome)} className="w-5 h-5 rounded text-[#DC143C] focus:ring-[#DC143C]" />
-                        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate" title={nome}>{nome}</span>
-                      </label>
-                    ))}
-                    {uniqueLocais.length === 0 && <span className="text-xs text-slate-400 italic">Vazio</span>}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t-2 border-slate-100 gap-4">
-              <div className="font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-lg w-full sm:w-auto text-center">
-                Exibindo: <span className="text-slate-900">{sortedPedidos.length}</span> resultados
-              </div>
-              
-              <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
-                <div className="flex items-center space-x-2 w-full sm:w-auto">
-                   <span className="font-bold text-slate-500 text-xs uppercase">Ordenar:</span>
-                   <select className="p-2 flex-1 sm:flex-none border-2 border-slate-300 rounded-lg bg-white font-bold text-sm text-slate-800 focus:outline-none focus:border-[#20B2AA]" value={viewConfig.sort} onChange={(e) => setViewConfig({...viewConfig, sort: e.target.value})}>
-                     <option value="data_desc">Data (Recentes)</option>
-                     <option value="data_asc">Data (Antigos)</option>
-                     <option value="agendamento_asc">Agendamento (Próximos)</option>
-                     <option value="agendamento_desc">Agendamento (Distantes)</option>
-                   </select>
-                </div>
-  
-                <div className="flex space-x-2 w-full sm:w-auto justify-center">
-                  <button onClick={() => setViewConfig({...viewConfig, mode: 'list'})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'list' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconList /></button>
-                  <button onClick={() => setViewConfig({...viewConfig, mode: 'cards', page: 1})} className={`p-2 flex-1 sm:flex-none flex justify-center rounded-lg border-2 ${viewConfig.mode === 'cards' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}><IconGrid /></button>
-                </div>
-              </div>
-            </div>
+             </div>
           </div>
 
           {loadingPedidos ? (
@@ -1019,7 +1101,7 @@ export default function App() {
                          <th className="p-4 font-black">Modo</th>
                          <SortHeader label="Local" field="local" />
                          <SortHeader label="Agendamento" field="agendamento" />
-                         <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais (S/ Filtro)</th>
+                         <th className="p-4 font-black text-slate-400 cursor-not-allowed">Materiais</th>
                          <SortHeader label="Status" field="status" />
                        </tr>
                      </thead>
@@ -1049,7 +1131,6 @@ export default function App() {
       )}
 
       {}
-      {/* ESTOQUE */}
       {activeTab === 'estoque' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
           
@@ -1060,7 +1141,6 @@ export default function App() {
                 <p className="text-slate-400 text-sm mt-1">Análise baseada no total adquirido e demanda de pedidos.</p>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                {/* FILTRO DE DEMANDA DO ESTOQUE */}
                 <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-lg w-full sm:w-auto border border-slate-700 shadow-inner">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 shrink-0">Demanda:</span>
                   <select className="bg-transparent text-white font-bold text-sm focus:outline-none cursor-pointer w-full py-1"
@@ -1070,7 +1150,7 @@ export default function App() {
                     <option value="ENVIADO" className="text-slate-900">Apenas Enviados</option>
                   </select>
                 </div>
-                <button onClick={() => setModalLeva({ show: true, step: 1, nome: '', itens: {} })} className="w-full sm:w-auto bg-white text-slate-900 hover:bg-slate-100 px-4 py-3 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm shrink-0">
+                <button onClick={() => setModalLeva({ show: true, step: 1, nome: '', itens: {}, error: null })} className="w-full sm:w-auto bg-white text-slate-900 hover:bg-slate-100 px-4 py-3 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm shrink-0">
                   <IconPlus /> Nova Leva
                 </button>
               </div>
@@ -1115,7 +1195,6 @@ export default function App() {
                 )}
               </div>
               
-              {/* SAÍDA NATURAL */}
               <div className="pt-4 border-t border-slate-700">
                 <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
                   <span>Saída Natural (Escoamento não registrado)</span>
@@ -1129,7 +1208,6 @@ export default function App() {
                 <p className="text-xs text-slate-400">Diferença física que não passou por pedidos do aplicativo em relação ao total adquirido.</p>
               </div>
 
-              {/* SAÍDA TOTAL VS ADQUIRIDO (NOVO GRÁFICO) */}
               <div className="pt-4 mt-4 border-t border-slate-700">
                 <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
                   <span>Saída Total (Pedidos App + Escoamento vs Adquirido)</span>
@@ -1137,19 +1215,9 @@ export default function App() {
                     {totalSaidasReal} un. ({pctSaidaTotalGeral.toFixed(1)}%)
                   </span>
                 </div>
-                <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative mb-1">
-                  <div className={`h-4 rounded-full transition-all ${pctSaidaTotalGeral > 90 ? 'bg-[#DC143C]' : pctSaidaTotalGeral > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA]'}`} style={{ width: `${Math.max(0, Math.min(pctSaidaTotalGeral, 100))}%` }}></div>
-                </div>
-              </div>
-
-              {/* COMPARAÇÃO: DEMANDA VS SAÍDA NATURAL */}
-              <div className="pt-4 mt-4 border-t border-slate-700">
-                <div className="flex justify-between text-sm font-bold text-slate-300 mb-2">
-                  <span>Composição das Saídas (Formal vs Escoamento)</span>
-                </div>
                 <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden flex relative mb-2">
-                  <div className="h-4 bg-[#E5B80B] transition-all" style={{ width: `${Math.max(0, Math.min(pctDemandaRelativa, 100))}%` }} title={`Pedidos do App: ${pctDemandaRelativa.toFixed(1)}%`}></div>
-                  <div className="h-4 bg-[#DC143C] transition-all" style={{ width: `${Math.max(0, Math.min(pctNaturalRelativa, 100))}%` }} title={`Escoamento: ${pctNaturalRelativa.toFixed(1)}%`}></div>
+                  <div className="h-4 bg-[#E5B80B] transition-all" style={{ width: `${Math.max(0, Math.min(pctDemandaRelativa, 100) * (Math.min(pctSaidaTotalGeral, 100) / 100))}%` }} title={`Pedidos do App`}></div>
+                  <div className="h-4 bg-[#DC143C] transition-all" style={{ width: `${Math.max(0, Math.min(pctNaturalRelativa, 100) * (Math.min(pctSaidaTotalGeral, 100) / 100))}%` }} title={`Escoamento`}></div>
                 </div>
                 <div className="flex justify-between text-xs font-bold">
                   <span className="text-[#E5B80B]">Pedidos App: {pctDemandaRelativa.toFixed(1)}%</span>
@@ -1176,6 +1244,116 @@ export default function App() {
                 )) : <span className="text-slate-500 text-sm">Nenhum local registrado ainda.</span>}
               </div>
             </div>
+          </div>
+
+          {}
+          <div className="bg-white rounded-2xl border-2 border-slate-800 p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] relative z-0">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b-2 border-slate-200 pb-4 mb-6">
+                <div>
+                   <h2 className="text-2xl font-black text-slate-900">Evolução das Entregas</h2>
+                   <p className="text-slate-500 text-sm mt-1">Acompanhe a demanda dos materiais ao longo do tempo.</p>
+                </div>
+                <div className="flex gap-4 mt-4 md:mt-0 bg-slate-100 p-1.5 rounded-lg border border-slate-200">
+                   <label className={`cursor-pointer px-4 py-2 rounded-md font-bold text-sm transition-colors ${chartDateField === 'data' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>
+                      <input type="radio" className="hidden" value="data" checked={chartDateField === 'data'} onChange={() => setChartDateField('data')} /> Data do Pedido
+                   </label>
+                   <label className={`cursor-pointer px-4 py-2 rounded-md font-bold text-sm transition-colors ${chartDateField === 'dataAgendada' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>
+                      <input type="radio" className="hidden" value="dataAgendada" checked={chartDateField === 'dataAgendada'} onChange={() => setChartDateField('dataAgendada')} /> Data Agendada
+                   </label>
+                </div>
+             </div>
+
+             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-1 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col max-h-[350px]">
+                   <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
+                      <span className="font-black text-slate-800 text-sm uppercase tracking-wider">Materiais</span>
+                      <div className="space-x-2">
+                         <button onClick={() => setSelectedChartMaterials(estoque.map(i => i.nome))} className="text-xs text-[#20B2AA] hover:underline font-bold">Todos</button>
+                         <button onClick={() => setSelectedChartMaterials([])} className="text-xs text-[#DC143C] hover:underline font-bold">Nenhum</button>
+                      </div>
+                   </div>
+                   <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                      {estoque.length === 0 ? <p className="text-xs text-slate-400">Carregando...</p> : 
+                       estoque.map((item, index) => {
+                          const isSelected = selectedChartMaterials.includes(item.nome);
+                          const color = chartColors[index % chartColors.length];
+                          return (
+                             <label key={item.id} className="flex items-center space-x-3 cursor-pointer group hover:bg-slate-100 p-1.5 rounded">
+                                <input type="checkbox" checked={isSelected} 
+                                   onChange={() => {
+                                      if(isSelected) setSelectedChartMaterials(prev => prev.filter(m => m !== item.nome));
+                                      else setSelectedChartMaterials(prev => [...prev, item.nome]);
+                                   }} 
+                                   className="w-4 h-4 rounded text-[#20B2AA] focus:ring-[#20B2AA]" />
+                                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color, opacity: isSelected ? 1 : 0.2 }}></div>
+                                <span className={`text-xs font-bold truncate transition-colors ${isSelected ? 'text-slate-800' : 'text-slate-400'}`} title={item.nome}>{item.nome}</span>
+                             </label>
+                          )
+                       })
+                      }
+                   </div>
+                </div>
+
+                <div className="lg:col-span-3 bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-center overflow-x-auto">
+                   {sortedChartDates.length === 0 ? (
+                      <p className="text-slate-400 font-bold">Nenhum dado encontrado para os filtros e datas atuais.</p>
+                   ) : (
+                      <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full min-w-[600px] h-auto drop-shadow-sm">
+                         {/* Eixos Grid */}
+                         {[0, 0.25, 0.5, 0.75, 1].map(ratio => {
+                             const y = chartH - padY - (plotH * ratio);
+                             return (
+                               <g key={ratio}>
+                                 <line x1={padX} y1={y} x2={chartW - padX} y2={y} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+                                 <text x={padX - 10} y={y} fontSize="12" fill="#64748b" textAnchor="end" alignmentBaseline="middle" fontWeight="bold">
+                                     {Math.round(maxVal * ratio)}
+                                 </text>
+                               </g>
+                             )
+                         })}
+                         <line x1={padX} y1={chartH - padY} x2={chartW - padX} y2={chartH - padY} stroke="#94a3b8" strokeWidth="2" />
+                         
+                         {/* Valores X (Datas) */}
+                         {sortedChartDates.map((date, i) => (
+                             <text key={date} x={padX + (i * stepX)} y={chartH - padY + 20} fontSize="11" fill="#64748b" textAnchor="middle" fontWeight="bold">
+                                 {date.split('-').reverse().slice(0,2).join('/')}
+                             </text>
+                         ))}
+                         
+                         {/* Linhas SVG Geradas */}
+                         {selectedChartMaterials.map(mat => {
+                             const matIndex = estoque.findIndex(e => e.nome === mat);
+                             if (matIndex === -1) return null;
+                             const color = chartColors[matIndex % chartColors.length];
+                             
+                             const points = sortedChartDates.map((d, index) => {
+                                 const val = chartDataMap[d][mat] || 0;
+                                 const x = padX + index * stepX;
+                                 const y = chartH - padY - (val / maxVal) * plotH;
+                                 return `${x},${y}`;
+                             }).join(' ');
+                             
+                             return (
+                                 <g key={mat} className="group cursor-pointer">
+                                     <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" className="transition-all opacity-70 group-hover:opacity-100 group-hover:stroke-[4px]" />
+                                     {sortedChartDates.map((d, index) => {
+                                         const val = chartDataMap[d][mat] || 0;
+                                         if(val === 0) return null;
+                                         const x = padX + index * stepX;
+                                         const y = chartH - padY - (val / maxVal) * plotH;
+                                         return (
+                                           <circle key={`${mat}-${d}`} cx={x} cy={y} r="5" fill={color} className="transition-all group-hover:r-6 stroke-white stroke-2">
+                                              <title>{`${mat}\nData: ${d.split('-').reverse().join('/')}\nQuantidade: ${val}`}</title>
+                                           </circle>
+                                         );
+                                     })}
+                                 </g>
+                             );
+                         })}
+                      </svg>
+                   )}
+                </div>
+             </div>
           </div>
 
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
@@ -1205,6 +1383,7 @@ export default function App() {
              </div>
           </div>
 
+          {/* Tabela/Cards de Estoque */}
           {loadingEstoque ? (
             <div className="text-center py-20 font-bold text-slate-500 flex flex-col items-center">
                <GradientSpinner className="w-12 h-12 mb-4" />
@@ -1231,11 +1410,13 @@ export default function App() {
                    </tr>
                  </thead>
                  <tbody>
+                   {activeEstoque.length === 0 && (
+                     <tr><td colSpan="10" className="p-8 text-center text-slate-500 font-bold">Nenhum material encontrado com este filtro/busca.</td></tr>
+                   )}
                    {activeEstoque.map(item => {
                      const demandaIt = aggregatedRequests[item.nome] || 0;
                      const pctDemanda = Number(item.totalAdquirido) > 0 ? (demandaIt / Number(item.totalAdquirido)) * 100 : 0;
                      
-                     // Escala das 3 cores para Demanda (Total Adquirido vs Total Pedidos)
                      const demandColorClass = pctDemanda > 90 ? 'text-[#DC143C]' : pctDemanda > 50 ? 'text-[#E5B80B]' : 'text-[#20B2AA]';
                      
                      const levasAtivasGlobais = levasHeaders.filter(l => 
@@ -1271,11 +1452,15 @@ export default function App() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {activeEstoque.length === 0 && (
+                 <div className="col-span-full py-12 text-center text-slate-500 font-bold text-lg bg-white rounded-2xl border-2 border-slate-200 border-dashed">
+                    Nenhum material encontrado com este filtro/busca.
+                 </div>
+               )}
                {activeEstoque.map(item => {
                  const demandaIt = aggregatedRequests[item.nome] || 0;
                  const pctDemanda = Number(item.totalAdquirido) > 0 ? (demandaIt / Number(item.totalAdquirido)) * 100 : 0;
                  
-                 // Escala das 3 cores para Demanda
                  const demandTextClass = pctDemanda > 90 ? 'text-[#DC143C]' : pctDemanda > 50 ? 'text-[#E5B80B]' : 'text-[#20B2AA]';
                  const demandBgClass = pctDemanda > 90 ? 'bg-[#DC143C]' : pctDemanda > 50 ? 'bg-[#E5B80B]' : 'bg-[#20B2AA]';
 
@@ -1337,6 +1522,12 @@ export default function App() {
       {modalStatus.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(32,178,170,1)] animate-in fade-in zoom-in-95 duration-200">
+            {modalStatus.error && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                 <strong>Erro:</strong> {modalStatus.error}
+              </div>
+            )}
+            
             {modalStatus.step === 1 ? (
               <>
                 <div className="w-16 h-16 bg-[#E5B80B]/20 text-[#E5B80B] rounded-full flex items-center justify-center mb-6 mx-auto"><IconAlert /></div>
@@ -1346,7 +1537,7 @@ export default function App() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button onClick={() => setModalStatus({show: false})} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Cancelar</button>
-                  <button onClick={() => setModalStatus({...modalStatus, step: 2})} className="flex-1 py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] hover:bg-slate-800">Sim, continuar</button>
+                  <button onClick={() => setModalStatus({...modalStatus, step: 2, error: null})} className="flex-1 py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] hover:bg-slate-800">Sim, continuar</button>
                 </div>
               </>
             ) : (
@@ -1424,6 +1615,12 @@ export default function App() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
             
+            {(modalEditConfirm.error || modalNewConfirm.error) && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                 <strong>Erro:</strong> {modalEditConfirm.error || modalNewConfirm.error}
+              </div>
+            )}
+
             {(modalEditConfirm.step === 1 && modalEditConfirm.show) || modalNewConfirm.show ? (
               <>
                 <div className="w-16 h-16 bg-[#20B2AA]/20 text-[#20B2AA] rounded-full flex items-center justify-center mb-6 mx-auto"><IconCheck /></div>
@@ -1453,7 +1650,7 @@ export default function App() {
                   <button onClick={() => { setModalEditConfirm({show: false}); setModalNewConfirm({show: false}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
                     {modalEditConfirm.show ? 'Voltar' : 'Revisar Dados'}
                   </button>
-                  <button onClick={() => modalEditConfirm.show ? setModalEditConfirm({...modalEditConfirm, step: 2}) : processSubmit(false)} disabled={submitting} className="flex-1 flex justify-center items-center py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800 disabled:opacity-70">
+                  <button onClick={() => modalEditConfirm.show ? setModalEditConfirm({...modalEditConfirm, step: 2, error: null}) : processSubmit(false)} disabled={submitting} className="flex-1 flex justify-center items-center py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800 disabled:opacity-70">
                     {submitting ? <GradientSpinner className="w-6 h-6" /> : (modalEditConfirm.show ? 'Sim, Continuar' : 'Gravar Pedido')}
                   </button>
                 </div>
@@ -1480,6 +1677,12 @@ export default function App() {
       {modalLeva.show && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-[8px_8px_0px_0px_rgba(229,184,11,1)] animate-in fade-in zoom-in-95 duration-200">
+            {modalLeva.error && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                 <strong>Erro:</strong> {modalLeva.error}
+              </div>
+            )}
+            
             {modalLeva.step === 1 ? (
               <>
                 <h3 className="text-2xl font-black text-slate-900 mb-2 border-b-2 border-slate-200 pb-4">Registrar Nova Leva</h3>
@@ -1497,8 +1700,11 @@ export default function App() {
                   ))}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                  <button onClick={() => setModalLeva({show: false, step: 1, nome: '', itens: {}})} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Cancelar</button>
-                  <button onClick={() => { if(!modalLeva.nome.trim()) { alert('Dê um nome para a leva.'); return; } setModalLeva({...modalLeva, step: 2}); }} className="flex-1 py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] hover:bg-slate-800">Avançar</button>
+                  <button onClick={() => setModalLeva({show: false, step: 1, nome: '', itens: {}, error: null})} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50">Cancelar</button>
+                  <button onClick={() => { 
+                    if(!modalLeva.nome.trim()) { setModalLeva({...modalLeva, error: 'Dê um nome para a leva.'}); return; } 
+                    setModalLeva({...modalLeva, step: 2, error: null}); 
+                  }} className="flex-1 py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(229,184,11,1)] hover:bg-slate-800">Avançar</button>
                 </div>
               </>
             ) : (
@@ -1517,7 +1723,7 @@ export default function App() {
                 </div>
                 <p className="mb-6 text-center text-slate-700 font-bold text-sm">Esta ação criará uma nova coluna no Estoque. Deseja prosseguir?</p>
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <button onClick={() => setModalLeva({...modalLeva, step: 1})} disabled={updatingStatus} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Voltar</button>
+                  <button onClick={() => setModalLeva({...modalLeva, step: 1, error: null})} disabled={updatingStatus} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">Voltar</button>
                   <button onClick={handleCreateLeva} disabled={updatingStatus} className="flex-1 flex justify-center items-center py-4 sm:py-3 bg-[#E5B80B] text-slate-900 font-black rounded-xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:bg-[#d4aa0a] border-2 border-[#E5B80B] disabled:opacity-70">
                     {updatingStatus ? <GradientSpinner className="w-6 h-6" /> : "Confirmar e Salvar"}
                   </button>
