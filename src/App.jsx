@@ -80,7 +80,7 @@ export default function App() {
   const [selectedChartMaterials, setSelectedChartMaterials] = useState([]);
   const [chartMode, setChartMode] = useState('TOTAL');
   
-  // Formulário
+  // Formulário e UI Expansível
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
   const [enviados, setEnviados] = useState({});
@@ -182,6 +182,7 @@ export default function App() {
     }
   }, [activeTab, pedidos, estoque]);
 
+  // RESTAURADO COM SEGURANÇA TOTAL PARA O GOOGLE SHEETS
   const fetchStockData = async () => {
     setLoadingEstoque(true);
     try {
@@ -203,6 +204,7 @@ export default function App() {
     }
   };
 
+  // RESTAURADO COM SEGURANÇA TOTAL PARA O GOOGLE SHEETS
   const fetchPedidosData = async () => {
     setLoadingPedidos(true);
     setMensagemLista(null);
@@ -245,6 +247,7 @@ export default function App() {
     setEnviados(prev => ({ ...prev, [id]: qtd }));
   };
 
+  // RESTAURADO CÓDIGO PERFEITO DE INSERÇÃO NA PLANILHA COM O JSON PARSE CUIDADOSO
   const processSubmit = async (isEditMode = false) => {
     setSubmitting(true);
     setMensagem(null);
@@ -388,6 +391,7 @@ export default function App() {
     window.scrollTo(0,0);
   };
 
+  // RESTAURADO COM SEGURANÇA TOTAL
   const handleCreateLeva = async () => {
     setUpdatingStatus(true);
     setModalLeva(prev => ({...prev, error: null}));
@@ -409,6 +413,7 @@ export default function App() {
     }
   };
 
+  // RESTAURADO COM SEGURANÇA TOTAL
   const confirmStatusChange = async () => {
     setUpdatingStatus(true);
     setModalStatus(prev => ({...prev, error: null}));
@@ -527,17 +532,14 @@ export default function App() {
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
     : sortedPedidos; 
 
-  // Listas "brutas" para popular as Datalists dos Formulários sem restrição de filtros
   const rawUniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
   const rawUniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
   const rawUniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
 
-  // Listas Dinâmicas (Faceted Search) - Mostram apenas opções disponíveis com os filtros atuais (+ as ativas)
   const uniqueArticuladores = [...new Set([...sortedPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean), ...filters.articulador])].sort();
   const uniqueLiderancas = [...new Set([...sortedPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean), ...filters.lideranca])].sort();
   const uniqueLocais = [...new Set([...sortedPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean), ...filters.local])].sort();
 
-  // Locais Atendidos (Dashboard) respeita o filtro
   const locaisStats = sortedPedidos.reduce((acc, p) => {
     const loc = getMunicipioString(p.enderecoRecebimento || p.modoRecebimento);
     if (loc) acc[loc] = (acc[loc] || 0) + 1;
@@ -548,15 +550,14 @@ export default function App() {
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
-  let globalTotalSolicitado = 0; // Calculado sobre sortedPedidos
-  let globalAbsoluteTotalSolicitado = 0; // Calculado sobre TODOS os pedidos (ListaPedidos bruta) para a Saída Natural
+  let globalTotalSolicitado = 0;
+  let globalAbsoluteTotalSolicitado = 0; 
 
   estoque.forEach(item => {
     globalTotalAdquirido += Number(item.totalAdquirido) || 0;
     globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
-  // Demanda das Linhas e Tabela Filtrada do Dashboard (respeita sortedPedidos e filtro do dropdown)
   const pedidosParaEstoque = sortedPedidos.filter(p => {
     if (estoqueStatusFilter === 'TODOS') return true;
     return (p.status || 'PENDENTE').toUpperCase() === estoqueStatusFilter;
@@ -574,7 +575,6 @@ export default function App() {
     });
   });
 
-  // Saída Natural deve ser Global (independe de filtros de cidade, etc), logo usa a lista bruta
   listaPedidos.forEach(pedido => {
     const qts = (pedido.quantidades || '').split('\n');
     qts.forEach(q => {
@@ -584,9 +584,8 @@ export default function App() {
 
   const saidaNatural = (globalTotalAdquirido - globalAbsoluteTotalSolicitado) - globalTotalDisponivel;
   const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
-  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; // Pressão Filtrada
+  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; 
   
-  // Pizza Chart respeita o filtro
   const qtdEnviados = sortedPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
   const qtdPendentes = sortedPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
   const totalStatus = qtdEnviados + qtdPendentes;
@@ -699,6 +698,7 @@ export default function App() {
     );
   };
 
+  // Agrupamento para as Categorias Recolhíveis
   const groupedEstoque = activeEstoque.reduce((acc, item) => {
     const cat = getMaterialCategory(item.nome);
     if (!acc[cat]) acc[cat] = [];
@@ -932,7 +932,7 @@ export default function App() {
                 </div>
                 {formData.modoRecebimento === 'Despacho' && (
                   <div className="mt-4 space-y-4 md:pl-8" onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
                         <select className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white" value={formData.regiaoDespacho} onChange={(e) => setFormData({...formData, regiaoDespacho: e.target.value})}>
@@ -966,21 +966,19 @@ export default function App() {
                 </div>
                 {formData.modoRecebimento === 'Retirada no comitê' && (
                   <div className="mt-4 md:pl-8 space-y-4" onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-bold text-slate-800 mb-2">Data da Retirada <span className="text-[#DC143C]">*</span></label>
-                        <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
-                        <div className="space-y-2">
-                          {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
-                            <label key={hora} className="flex items-center space-x-3 cursor-pointer py-1">
-                              <input type="radio" value={hora} checked={formData.horarioRetirada === hora} onChange={(e) => setFormData({...formData, horarioRetirada: e.target.value})} className="w-5 h-5 accent-[#DC143C]"/>
-                              <span className="font-medium text-slate-700">{hora}</span>
-                            </label>
-                          ))}
-                        </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-800 mb-2">Data da Retirada <span className="text-[#DC143C]">*</span></label>
+                      <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full md:max-w-[200px] p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
+                      <div className="space-y-2">
+                        {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
+                          <label key={hora} className="flex items-center space-x-3 cursor-pointer py-1">
+                            <input type="radio" value={hora} checked={formData.horarioRetirada === hora} onChange={(e) => setFormData({...formData, horarioRetirada: e.target.value})} className="w-5 h-5 accent-[#DC143C]"/>
+                            <span className="font-medium text-slate-700">{hora}</span>
+                          </label>
+                        ))}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4">
