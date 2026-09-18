@@ -32,6 +32,18 @@ const GradientSpinner = ({ className = "w-10 h-10" }) => (
   </svg>
 );
 
+const getMaterialCategory = (nome) => {
+  const n = (nome || '').trim().toUpperCase();
+  if (n.includes("PRAGUINHA")) return "Adesivo Praguinha";
+  if (n.includes("BOLA")) return "Adesivo Bola";
+  if (n.includes("ADESIVO")) return "Adesivos";
+  if (n.includes("BANDEIRA")) return "Bandeira";
+  if (n.includes("DOBRA")) return "Dobra";
+  if (n.includes("SANTINHO")) return "Santinho";
+  if (n.includes("CARTAZ")) return "Cartaz";
+  return "Outros";
+};
+
 const initialFormState = {
   row: null,
   articulador: { nome: '', email: '', telefone: '' },
@@ -78,7 +90,7 @@ export default function App() {
   const [levasHeaders, setLevasHeaders] = useState([]);
   const [listaPedidos, setListaPedidos] = useState([]);
   
-  // Estados de Interface
+  // Estados de Interface e Modais
   const [loadingEstoque, setLoadingEstoque] = useState(false);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -91,6 +103,11 @@ export default function App() {
   const [modalViewOrder, setModalViewOrder] = useState({ show: false, order: null });
   const [modalLeva, setModalLeva] = useState({ show: false, step: 1, nome: '', itens: {}, error: null });
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Novos Estados (Contatos discretos e Categorias)
+  const [showArticuladorExtra, setShowArticuladorExtra] = useState(false);
+  const [showLiderancaExtra, setShowLiderancaExtra] = useState(false);
+  const [expandedCats, setExpandedCats] = useState({});
 
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
@@ -155,6 +172,18 @@ export default function App() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === 'editar_pedido' && estoque.length > 0) {
+       const catsToOpen = {};
+       estoque.forEach(item => {
+          if (pedidos[item.id] > 0) {
+             catsToOpen[getMaterialCategory(item.nome)] = true;
+          }
+       });
+       setExpandedCats(prev => ({...prev, ...catsToOpen}));
+    }
+  }, [activeTab, pedidos, estoque]);
+
   const fetchStockData = async () => {
     setLoadingEstoque(true);
     try {
@@ -197,6 +226,9 @@ export default function App() {
     setPedidos({});
     setEnviados({});
     setMensagem(null);
+    setShowArticuladorExtra(false);
+    setShowLiderancaExtra(false);
+    setExpandedCats({});
   };
 
   const handleQuantidadeChange = (id, quantidadeNova) => {
@@ -650,6 +682,14 @@ export default function App() {
     );
   };
 
+  const groupedEstoque = activeEstoque.reduce((acc, item) => {
+    const cat = getMaterialCategory(item.nome);
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
+  const categories = Object.keys(groupedEstoque).sort();
+
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
       
@@ -784,6 +824,7 @@ export default function App() {
         )}
 
       {}
+      {/* Formulários Novo e Editar Pedido */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300 print:hidden">
           
@@ -807,14 +848,24 @@ export default function App() {
               <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
               <input type="text" list="list-articuladores" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-              <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
-              <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-            </div>
+            
+            <button type="button" onClick={() => setShowArticuladorExtra(!showArticuladorExtra)} className="text-sm font-bold text-slate-800 hover:text-slate-900 flex items-center mb-2 transition-colors focus:outline-none">
+              {showArticuladorExtra ? <IconChevronUp /> : <IconChevronDown />}
+              <span className="ml-1">{showArticuladorExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
+            </button>
+            
+            {showArticuladorExtra && (
+              <div className="animate-in slide-in-from-top-2">
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+                  <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
+                  <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Seção Liderança */}
@@ -823,20 +874,28 @@ export default function App() {
               <IconUsers />
               <h2 className="text-2xl font-bold">Liderança de Destino</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
-                <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-                <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
-                <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-              </div>
+            <div className="mb-4">
+               <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
+               <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
             </div>
+
+            <button type="button" onClick={() => setShowLiderancaExtra(!showLiderancaExtra)} className="text-sm font-bold text-slate-900 hover:text-slate-800 flex items-center mb-2 transition-colors focus:outline-none">
+              {showLiderancaExtra ? <IconChevronUp /> : <IconChevronDown />}
+              <span className="ml-1">{showLiderancaExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
+            </button>
+
+            {showLiderancaExtra && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 animate-in slide-in-from-top-2">
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+                  <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
+                  <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Modo de Recebimento */}
@@ -904,7 +963,7 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 gap-4">
                       <div>
-                        <label className="block text-sm font-bold text-slate-800 mb-1">Município de Destino (Opcional)</label>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Local de destino</label>
                         <input type="text" list="list-locais" value={formData.municipio} onChange={e => setFormData({...formData, municipio: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
                       </div>
                     </div>
@@ -920,48 +979,80 @@ export default function App() {
               <div className="text-[#DC143C]"><IconPackage /></div>
               <h2 className="text-2xl font-bold text-slate-900">Seleção de Materiais <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
+            
             {loadingEstoque ? (
               <div className="text-center py-10 font-bold text-slate-500 flex flex-col items-center">
                 <GradientSpinner className="w-12 h-12 mb-4" />
                 Buscando estoque da planilha...
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeEstoque.map((item) => {
-                  const quantidadeEscolhida = pedidos[item.id] || 0;
-                  const quantidadeEnviada = enviados[item.id] || 0;
+              <div className="space-y-4">
+                {categories.map(cat => {
+                   const isExpanded = expandedCats[cat];
+                   const items = groupedEstoque[cat];
+                   const countRequested = items.reduce((sum, item) => sum + (pedidos[item.id] || 0), 0);
 
-                  return (
-                    <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors">
-                      <div>
-                        <h3 className="font-bold text-slate-800 text-lg mb-2 leading-tight">{item.nome}</h3>
-                        <div className="mb-4 flex flex-col sm:flex-row justify-between text-xs font-bold border border-slate-200 bg-white px-3 py-2 rounded-lg shadow-sm gap-2">
-                          <span className="text-slate-500 uppercase flex justify-between w-full sm:w-auto">Adq: <span className="text-slate-800 font-black text-sm ml-2">{item.totalAdquirido}</span></span>
-                          <span className="text-[#20B2AA] uppercase sm:border-l-2 sm:border-slate-200 sm:pl-3 flex justify-between w-full sm:w-auto">Em Estoque: <span className="font-black text-sm ml-2">{item.disponivel}</span></span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-200">
-                        <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Solicitado:</span>
-                        <div className="flex items-center space-x-2">
-                          <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">-</button>
-                          <input type="number" min="0" value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-16 md:w-20 text-center py-2 md:py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none text-base"/>
-                          <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">+</button>
-                        </div>
-                      </div>
-
-                      {activeTab === 'editar_pedido' && quantidadeEscolhida > 0 && (
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
-                          <span className="text-sm font-bold text-[#20B2AA] uppercase tracking-wider">Enviado:</span>
-                          <div className="flex items-center space-x-2">
-                            <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada - 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">-</button>
-                            <input type="number" min="0" value={quantidadeEnviada || ''} onChange={(e) => handleEnviadoChange(item.id, e.target.value)} className="w-16 md:w-20 text-center py-2 md:py-1 bg-[#20B2AA]/10 border-2 border-[#20B2AA] text-[#008080] rounded-md font-bold focus:outline-none text-base"/>
-                            <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada + 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">+</button>
+                   return (
+                     <div key={cat} className="border-2 border-slate-200 rounded-xl overflow-hidden bg-[#F9F6F0]">
+                        <button 
+                          type="button" 
+                          onClick={() => setExpandedCats(prev => ({...prev, [cat]: !prev[cat]}))}
+                          className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors focus:outline-none"
+                        >
+                          <div className="flex items-center gap-3">
+                            <h3 className="font-bold text-lg text-slate-800">{cat}</h3>
+                            <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">{items.length} itens</span>
+                            {countRequested > 0 && <span className="text-xs font-bold bg-[#DC143C]/10 text-[#DC143C] px-2 py-1 rounded-full">{countRequested} solicitados</span>}
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
+                          <div className="text-slate-500">
+                            {isExpanded ? <IconChevronUp /> : <IconChevronDown />}
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="p-4 border-t border-slate-200 bg-[#F9F6F0]">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {items.map((item) => {
+                                const quantidadeEscolhida = pedidos[item.id] || 0;
+                                const quantidadeEnviada = enviados[item.id] || 0;
+
+                                return (
+                                  <div key={item.id} className="p-4 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors shadow-sm">
+                                    <div>
+                                      <h3 className="font-bold text-slate-800 text-sm mb-2 leading-tight">{item.nome}</h3>
+                                      <div className="mb-4 flex flex-col sm:flex-row justify-between text-[10px] font-bold border border-slate-200 bg-slate-50 px-2 py-1.5 rounded-md shadow-sm gap-1">
+                                        <span className="text-slate-500 uppercase flex justify-between w-full sm:w-auto">Adq: <span className="text-slate-800 font-black ml-1">{item.totalAdquirido}</span></span>
+                                        <span className="text-[#20B2AA] uppercase sm:border-l-2 sm:border-slate-200 sm:pl-2 flex justify-between w-full sm:w-auto">Estoque: <span className="font-black ml-1">{item.disponivel}</span></span>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-200">
+                                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Solicitado:</span>
+                                      <div className="flex items-center space-x-2">
+                                        <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">-</button>
+                                        <input type="number" min="0" value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-12 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none text-sm"/>
+                                        <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">+</button>
+                                      </div>
+                                    </div>
+
+                                    {activeTab === 'editar_pedido' && quantidadeEscolhida > 0 && (
+                                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                        <span className="text-xs font-bold text-[#20B2AA] uppercase tracking-wider">Enviado:</span>
+                                        <div className="flex items-center space-x-2">
+                                          <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada - 1)} className="w-8 h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">-</button>
+                                          <input type="number" min="0" value={quantidadeEnviada || ''} onChange={(e) => handleEnviadoChange(item.id, e.target.value)} className="w-12 text-center py-1 bg-[#20B2AA]/10 border-2 border-[#20B2AA] text-[#008080] rounded-md font-bold focus:outline-none text-sm"/>
+                                          <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada + 1)} className="w-8 h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">+</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                     </div>
+                   );
                 })}
               </div>
             )}
@@ -1049,6 +1140,7 @@ export default function App() {
       )}
 
       {}
+      {/* RESTANTE DAS ABAS E TELAS COMO ESTAVAM (NÃO FORAM MODIFICADAS CONFORME INSTRUÇÃO) */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
