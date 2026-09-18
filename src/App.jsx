@@ -189,7 +189,9 @@ export default function App() {
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const response = await fetch(url);
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro de conexão com a planilha do Google. Tente recarregar a página em instantes.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       setEstoque(result.data || []);
@@ -210,7 +212,9 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const separator = url.includes('?') ? '&' : '?';
       const response = await fetch(`${url}${separator}action=pedidos`);
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha ao carregar pedidos. O servidor do Google retornou um erro temporário.'); }
       if (result.status === 'error') throw new Error(result.message);
       if (result.type !== 'pedidos') throw new Error('A Planilha ainda está sincronizando. Aguarde.');
       setListaPedidos(result.data || []);
@@ -275,7 +279,9 @@ export default function App() {
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro ao salvar. O servidor do Google retornou uma falha de conexão.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       if (isEditMode) {
@@ -382,7 +388,9 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const payload = { action: 'nova_leva', nomeLeva: modalLeva.nome, quantidadesLeva: modalLeva.itens };
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro ao salvar nova leva. O servidor retornou uma falha de conexão.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       setModalLeva({ show: false, step: 1, nome: '', itens: {}, error: null });
@@ -401,7 +409,9 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const payload = { action: 'update_status', row: modalStatus.order.row, status: modalStatus.newStatus };
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro ao atualizar status. O servidor retornou uma falha de conexão.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
@@ -838,73 +848,76 @@ export default function App() {
              </div>
           )}
 
-          {/* Seção Articulador */}
-          <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
-            <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
-              <IconUser />
-              <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
-              <input type="text" list="list-articuladores" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-            </div>
-            
-            <button type="button" onClick={() => setShowArticuladorExtra(!showArticuladorExtra)} className="text-sm font-bold text-slate-800 hover:text-slate-900 flex items-center mb-2 transition-colors focus:outline-none">
-              {showArticuladorExtra ? <IconChevronUp /> : <IconChevronDown />}
-              <span className="ml-1">{showArticuladorExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
-            </button>
-            
-            {showArticuladorExtra && (
-              <div className="animate-in slide-in-from-top-2">
-                <div className="mb-4">
-                  <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-                  <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
-                  <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                </div>
+          {/* Coluna Esquerda: Articulador e Liderança */}
+          <div className="md:col-span-5 flex flex-col gap-6">
+            {/* Seção Articulador */}
+            <div className="bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+              <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
+                <IconUser />
+                <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
               </div>
-            )}
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
+                <input type="text" list="list-articuladores" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              </div>
+              
+              <button type="button" onClick={() => setShowArticuladorExtra(!showArticuladorExtra)} className="text-sm font-bold text-slate-800 hover:text-slate-900 flex items-center mb-2 transition-colors focus:outline-none">
+                {showArticuladorExtra ? <IconChevronUp /> : <IconChevronDown />}
+                <span className="ml-1">{showArticuladorExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
+              </button>
+              
+              {showArticuladorExtra && (
+                <div className="animate-in slide-in-from-top-2">
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+                    <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
+                    <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Seção Liderança */}
+            <div className="bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+               <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
+                <IconUsers />
+                <h2 className="text-2xl font-bold">Liderança de Destino</h2>
+              </div>
+              <div className="mb-4">
+                 <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
+                 <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              </div>
+
+              <button type="button" onClick={() => setShowLiderancaExtra(!showLiderancaExtra)} className="text-sm font-bold text-slate-900 hover:text-slate-800 flex items-center mb-2 transition-colors focus:outline-none">
+                {showLiderancaExtra ? <IconChevronUp /> : <IconChevronDown />}
+                <span className="ml-1">{showLiderancaExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
+              </button>
+
+              {showLiderancaExtra && (
+                <div className="grid grid-cols-1 gap-y-4 animate-in slide-in-from-top-2">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+                    <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
+                    <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Seção Liderança */}
-          <div className="md:col-span-7 bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
-             <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
-              <IconUsers />
-              <h2 className="text-2xl font-bold">Liderança de Destino</h2>
-            </div>
-            <div className="mb-4">
-               <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
-               <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-            </div>
-
-            <button type="button" onClick={() => setShowLiderancaExtra(!showLiderancaExtra)} className="text-sm font-bold text-slate-900 hover:text-slate-800 flex items-center mb-2 transition-colors focus:outline-none">
-              {showLiderancaExtra ? <IconChevronUp /> : <IconChevronDown />}
-              <span className="ml-1">{showLiderancaExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
-            </button>
-
-            {showLiderancaExtra && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 animate-in slide-in-from-top-2">
-                <div>
-                  <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-                  <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
-                  <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Modo de Recebimento */}
-          <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+          {/* Coluna Direita: Modo de Recebimento */}
+          <div className="md:col-span-7 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 h-full flex flex-col">
              <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <IconTruck />
               <h2 className="text-2xl font-bold text-slate-900">Modo de Recebimento <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 flex-1">
               <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${formData.modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setFormData({...formData, modoRecebimento: 'Despacho'})}>
                 <div className="flex items-center mb-3">
                   <input type="radio" checked={formData.modoRecebimento === 'Despacho'} readOnly className="w-5 h-5 mr-3 accent-[#20B2AA]" />
@@ -912,7 +925,7 @@ export default function App() {
                 </div>
                 {formData.modoRecebimento === 'Despacho' && (
                   <div className="mt-4 space-y-4 md:pl-8" onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-bold text-slate-800 mb-1">Região</label>
                         <select className="w-full p-2 border-2 border-slate-400 rounded-lg bg-white" value={formData.regiaoDespacho} onChange={(e) => setFormData({...formData, regiaoDespacho: e.target.value})}>
@@ -946,19 +959,21 @@ export default function App() {
                 </div>
                 {formData.modoRecebimento === 'Retirada no comitê' && (
                   <div className="mt-4 md:pl-8 space-y-4" onClick={e => e.stopPropagation()}>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-800 mb-2">Data da Retirada <span className="text-[#DC143C]">*</span></label>
-                      <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full md:max-w-[200px] p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
-                      <div className="space-y-2">
-                        {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
-                          <label key={hora} className="flex items-center space-x-3 cursor-pointer py-1">
-                            <input type="radio" value={hora} checked={formData.horarioRetirada === hora} onChange={(e) => setFormData({...formData, horarioRetirada: e.target.value})} className="w-5 h-5 accent-[#DC143C]"/>
-                            <span className="font-medium text-slate-700">{hora}</span>
-                          </label>
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-2">Data da Retirada <span className="text-[#DC143C]">*</span></label>
+                        <input type="date" required value={formData.dataAgendada} onChange={e => setFormData({...formData, dataAgendada: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-2">Horário da retirada <span className="text-[#DC143C]">*</span></label>
+                        <div className="space-y-2">
+                          {['10h - 12h', '12h - 16h', '16h - 19h'].map(hora => (
+                            <label key={hora} className="flex items-center space-x-3 cursor-pointer py-1">
+                              <input type="radio" value={hora} checked={formData.horarioRetirada === hora} onChange={(e) => setFormData({...formData, horarioRetirada: e.target.value})} className="w-5 h-5 accent-[#DC143C]"/>
+                              <span className="font-medium text-slate-700">{hora}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4">
