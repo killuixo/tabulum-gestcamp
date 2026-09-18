@@ -32,18 +32,6 @@ const GradientSpinner = ({ className = "w-10 h-10" }) => (
   </svg>
 );
 
-const getMaterialCategory = (nome) => {
-  const n = (nome || '').trim().toUpperCase();
-  if (n.includes("PRAGUINHA")) return "Adesivo Praguinha";
-  if (n.includes("BOLA")) return "Adesivo Bola";
-  if (n.includes("ADESIVO")) return "Adesivos";
-  if (n.includes("BANDEIRA")) return "Bandeira";
-  if (n.includes("DOBRA")) return "Dobra";
-  if (n.includes("SANTINHO")) return "Santinho";
-  if (n.includes("CARTAZ")) return "Cartaz";
-  return "Outros";
-};
-
 const initialFormState = {
   row: null,
   articulador: { nome: '', email: '', telefone: '' },
@@ -80,13 +68,10 @@ export default function App() {
   const [selectedChartMaterials, setSelectedChartMaterials] = useState([]);
   const [chartMode, setChartMode] = useState('TOTAL');
   
-  // Formulário e UI Expansível
+  // Formulário
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
   const [enviados, setEnviados] = useState({});
-  const [showArticuladorExtra, setShowArticuladorExtra] = useState(false);
-  const [showLiderancaExtra, setShowLiderancaExtra] = useState(false);
-  const [expandedCats, setExpandedCats] = useState({});
   
   // Dados brutos da Planilha
   const [estoque, setEstoque] = useState([]);
@@ -170,27 +155,12 @@ export default function App() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab === 'editar_pedido' && estoque.length > 0) {
-       const catsToOpen = {};
-       estoque.forEach(item => {
-          if (pedidos[item.id] > 0) {
-             catsToOpen[getMaterialCategory(item.nome)] = true;
-          }
-       });
-       setExpandedCats(prev => ({...prev, ...catsToOpen}));
-    }
-  }, [activeTab, pedidos, estoque]);
-
-  // RESTAURADO COM SEGURANÇA TOTAL PARA O GOOGLE SHEETS
   const fetchStockData = async () => {
     setLoadingEstoque(true);
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const response = await fetch(url);
-      const text = await response.text();
-      let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro de conexão com o Google. O servidor retornou uma resposta inválida.'); }
+      const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       
       setEstoque(result.data || []);
@@ -204,7 +174,6 @@ export default function App() {
     }
   };
 
-  // RESTAURADO COM SEGURANÇA TOTAL PARA O GOOGLE SHEETS
   const fetchPedidosData = async () => {
     setLoadingPedidos(true);
     setMensagemLista(null);
@@ -212,9 +181,7 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const separator = url.includes('?') ? '&' : '?';
       const response = await fetch(`${url}${separator}action=pedidos`);
-      const text = await response.text();
-      let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha de conexão com o Google. O servidor retornou uma resposta inválida.'); }
+      const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       if (result.type !== 'pedidos') throw new Error('A Planilha ainda está sincronizando. Aguarde.');
       setListaPedidos(result.data || []);
@@ -230,9 +197,6 @@ export default function App() {
     setPedidos({});
     setEnviados({});
     setMensagem(null);
-    setShowArticuladorExtra(false);
-    setShowLiderancaExtra(false);
-    setExpandedCats({});
   };
 
   const handleQuantidadeChange = (id, quantidadeNova) => {
@@ -247,7 +211,6 @@ export default function App() {
     setEnviados(prev => ({ ...prev, [id]: qtd }));
   };
 
-  // RESTAURADO CÓDIGO PERFEITO DE INSERÇÃO NA PLANILHA COM O JSON PARSE CUIDADOSO
   const processSubmit = async (isEditMode = false) => {
     setSubmitting(true);
     setMensagem(null);
@@ -280,14 +243,7 @@ export default function App() {
     try {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-      const text = await response.text();
-      let result;
-      try { 
-        result = JSON.parse(text); 
-      } catch (e) { 
-        throw new Error('Falha de conexão com a planilha do Google. O servidor retornou uma resposta inválida ou bloqueada. Tente novamente.'); 
-      }
-
+      const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       
       if (isEditMode) {
@@ -295,17 +251,13 @@ export default function App() {
         setActiveTab('dashboard'); 
         fetchPedidosData(); 
       } else {
-        setModalNewConfirm({ show: false, changesSummary: [], error: null });
+        setModalNewConfirm({show: false, summary: null, error: null});
         setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
         resetForm();
-        window.scrollTo(0,0);
       }
     } catch (error) {
-      if (isEditMode) {
-        setModalEditConfirm(prev => ({...prev, error: error.message}));
-      } else {
-        setModalNewConfirm(prev => ({...prev, error: error.message}));
-      }
+      if (isEditMode) setModalEditConfirm(prev => ({...prev, error: `Falha ao salvar edição: ${error.message}`}));
+      else setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
     } finally {
       setSubmitting(false);
     }
@@ -391,7 +343,6 @@ export default function App() {
     window.scrollTo(0,0);
   };
 
-  // RESTAURADO COM SEGURANÇA TOTAL
   const handleCreateLeva = async () => {
     setUpdatingStatus(true);
     setModalLeva(prev => ({...prev, error: null}));
@@ -399,9 +350,7 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const payload = { action: 'nova_leva', nomeLeva: modalLeva.nome, quantidadesLeva: modalLeva.itens };
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-      const text = await response.text();
-      let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha de conexão com o Google. O servidor retornou uma resposta inválida.'); }
+      const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       
       setModalLeva({ show: false, step: 1, nome: '', itens: {}, error: null });
@@ -413,7 +362,6 @@ export default function App() {
     }
   };
 
-  // RESTAURADO COM SEGURANÇA TOTAL
   const confirmStatusChange = async () => {
     setUpdatingStatus(true);
     setModalStatus(prev => ({...prev, error: null}));
@@ -421,9 +369,7 @@ export default function App() {
       const url = import.meta.env.VITE_SHEETS_API_URL;
       const payload = { action: 'update_status', row: modalStatus.order.row, status: modalStatus.newStatus };
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-      const text = await response.text();
-      let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha de conexão com o Google. O servidor retornou uma resposta inválida.'); }
+      const result = await response.json();
       if (result.status === 'error') throw new Error(result.message);
       
       setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
@@ -532,14 +478,17 @@ export default function App() {
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
     : sortedPedidos; 
 
+  // Listas "brutas" para popular as Datalists dos Formulários sem restrição de filtros
   const rawUniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
   const rawUniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
   const rawUniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
 
+  // Listas Dinâmicas (Faceted Search) - Mostram apenas opções disponíveis com os filtros atuais (+ as ativas)
   const uniqueArticuladores = [...new Set([...sortedPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean), ...filters.articulador])].sort();
   const uniqueLiderancas = [...new Set([...sortedPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean), ...filters.lideranca])].sort();
   const uniqueLocais = [...new Set([...sortedPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean), ...filters.local])].sort();
 
+  // Locais Atendidos (Dashboard) respeita o filtro
   const locaisStats = sortedPedidos.reduce((acc, p) => {
     const loc = getMunicipioString(p.enderecoRecebimento || p.modoRecebimento);
     if (loc) acc[loc] = (acc[loc] || 0) + 1;
@@ -550,14 +499,15 @@ export default function App() {
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
-  let globalTotalSolicitado = 0;
-  let globalAbsoluteTotalSolicitado = 0; 
+  let globalTotalSolicitado = 0; // Calculado sobre sortedPedidos
+  let globalAbsoluteTotalSolicitado = 0; // Calculado sobre TODOS os pedidos (ListaPedidos bruta) para a Saída Natural
 
   estoque.forEach(item => {
     globalTotalAdquirido += Number(item.totalAdquirido) || 0;
     globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
+  // Demanda das Linhas e Tabela Filtrada do Dashboard (respeita sortedPedidos e filtro do dropdown)
   const pedidosParaEstoque = sortedPedidos.filter(p => {
     if (estoqueStatusFilter === 'TODOS') return true;
     return (p.status || 'PENDENTE').toUpperCase() === estoqueStatusFilter;
@@ -575,6 +525,7 @@ export default function App() {
     });
   });
 
+  // Saída Natural deve ser Global (independe de filtros de cidade, etc), logo usa a lista bruta
   listaPedidos.forEach(pedido => {
     const qts = (pedido.quantidades || '').split('\n');
     qts.forEach(q => {
@@ -584,8 +535,9 @@ export default function App() {
 
   const saidaNatural = (globalTotalAdquirido - globalAbsoluteTotalSolicitado) - globalTotalDisponivel;
   const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
-  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; 
+  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; // Pressão Filtrada
   
+  // Pizza Chart respeita o filtro
   const qtdEnviados = sortedPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
   const qtdPendentes = sortedPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
   const totalStatus = qtdEnviados + qtdPendentes;
@@ -697,15 +649,6 @@ export default function App() {
       </th>
     );
   };
-
-  // Agrupamento para as Categorias Recolhíveis
-  const groupedEstoque = activeEstoque.reduce((acc, item) => {
-    const cat = getMaterialCategory(item.nome);
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {});
-  const categories = Object.keys(groupedEstoque).sort();
 
   return (
     <div className="min-h-screen bg-[#F9F6F0] p-4 md:p-8 font-sans text-slate-800 pb-20">
@@ -854,77 +797,55 @@ export default function App() {
              </div>
           )}
 
-          {/* Coluna Esquerda: Articulador + Liderança */}
-          <div className="md:col-span-5 flex flex-col gap-6 h-full">
-            
-            {/* Seção Articulador */}
-            <div className="bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 flex-1">
-              <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
-                <IconUser />
-                <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
-                <input type="text" list="list-articuladores" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-              </div>
-
-              <button type="button" onClick={() => setShowArticuladorExtra(!showArticuladorExtra)} className="text-sm font-bold text-slate-800 hover:text-slate-900 flex items-center mb-2 transition-colors focus:outline-none">
-                {showArticuladorExtra ? <IconChevronUp /> : <IconChevronDown />}
-                <span className="ml-1">{showArticuladorExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
-              </button>
-
-              {showArticuladorExtra && (
-                <div className="animate-in slide-in-from-top-2">
-                  <div className="mb-4">
-                    <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-                    <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
-                    <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                  </div>
-                </div>
-              )}
+          {/* Seção Articulador */}
+          <div className="md:col-span-5 bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+            <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
+              <IconUser />
+              <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
             </div>
-
-            {/* Seção Liderança */}
-            <div className="bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 flex-1">
-               <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
-                <IconUsers />
-                <h2 className="text-2xl font-bold">Liderança de Destino</h2>
-              </div>
-              <div className="mb-4">
-                  <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
-                  <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-              </div>
-              
-              <button type="button" onClick={() => setShowLiderancaExtra(!showLiderancaExtra)} className="text-sm font-bold text-slate-900 hover:text-slate-800 flex items-center mb-2 transition-colors focus:outline-none">
-                {showLiderancaExtra ? <IconChevronUp /> : <IconChevronDown />}
-                <span className="ml-1">{showLiderancaExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
-              </button>
-
-              {showLiderancaExtra && (
-                <div className="grid grid-cols-1 gap-y-4 animate-in slide-in-from-top-2">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
-                    <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
-                    <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
-                  </div>
-                </div>
-              )}
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
+              <input type="text" list="list-articuladores" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+              <input type="email" value={formData.articulador.email} onChange={e => setFormData({...formData, articulador: {...formData.articulador, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-800 mb-1">Telefone / WhatsApp</label>
+              <input type="tel" value={formData.articulador.telefone} onChange={e => setFormData({...formData, articulador: {...formData.articulador, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
             </div>
           </div>
 
-          {/* Coluna Direita: Modo de Recebimento */}
-          <div className="md:col-span-7 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 h-full flex flex-col">
+          {/* Seção Liderança */}
+          <div className="md:col-span-7 bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+             <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
+              <IconUsers />
+              <h2 className="text-2xl font-bold">Liderança de Destino</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
+                <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-800 mb-1">E-mail</label>
+                <input type="email" value={formData.lideranca.email} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, email: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-800 mb-1">Telefone</label>
+                <input type="tel" value={formData.lideranca.telefone} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, telefone: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+              </div>
+            </div>
+          </div>
+
+          {/* Modo de Recebimento */}
+          <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
              <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <IconTruck />
               <h2 className="text-2xl font-bold text-slate-900">Modo de Recebimento <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
-            <div className="grid grid-cols-1 gap-6 flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${formData.modoRecebimento === 'Despacho' ? 'border-[#20B2AA] bg-[#20B2AA]/10' : 'border-slate-300 hover:border-slate-400'}`} onClick={() => setFormData({...formData, modoRecebimento: 'Despacho'})}>
                 <div className="flex items-center mb-3">
                   <input type="radio" checked={formData.modoRecebimento === 'Despacho'} readOnly className="w-5 h-5 mr-3 accent-[#20B2AA]" />
@@ -983,7 +904,7 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 gap-4">
                       <div>
-                        <label className="block text-sm font-bold text-slate-800 mb-1">Local de destino</label>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Município de Destino (Opcional)</label>
                         <input type="text" list="list-locais" value={formData.municipio} onChange={e => setFormData({...formData, municipio: e.target.value})} className="w-full p-2 border-2 border-slate-400 rounded-lg focus:border-[#DC143C] focus:outline-none" />
                       </div>
                     </div>
@@ -993,86 +914,54 @@ export default function App() {
             </div>
           </div>
 
-          {/* Seleção de Materiais com Sanfona */}
+          {/* Seleção de Materiais */}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
             <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <div className="text-[#DC143C]"><IconPackage /></div>
               <h2 className="text-2xl font-bold text-slate-900">Seleção de Materiais <span className="text-[#DC143C] text-sm">*</span></h2>
             </div>
-            
             {loadingEstoque ? (
               <div className="text-center py-10 font-bold text-slate-500 flex flex-col items-center">
                 <GradientSpinner className="w-12 h-12 mb-4" />
                 Buscando estoque da planilha...
               </div>
             ) : (
-              <div className="space-y-4">
-                {categories.map(cat => {
-                   const isExpanded = expandedCats[cat];
-                   const items = groupedEstoque[cat];
-                   const countRequested = items.reduce((sum, item) => sum + (pedidos[item.id] || 0), 0);
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeEstoque.map((item) => {
+                  const quantidadeEscolhida = pedidos[item.id] || 0;
+                  const quantidadeEnviada = enviados[item.id] || 0;
 
-                   return (
-                     <div key={cat} className="border-2 border-slate-200 rounded-xl overflow-hidden bg-[#F9F6F0]">
-                        <button 
-                          type="button" 
-                          onClick={() => setExpandedCats(prev => ({...prev, [cat]: !prev[cat]}))}
-                          className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors focus:outline-none"
-                        >
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-bold text-lg text-slate-800">{cat}</h3>
-                            <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">{items.length} itens</span>
-                            {countRequested > 0 && <span className="text-xs font-bold bg-[#DC143C]/10 text-[#DC143C] px-2 py-1 rounded-full">{countRequested} solicitados</span>}
+                  return (
+                    <div key={item.id} className="p-4 bg-[#F9F6F0] border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors">
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-lg mb-2 leading-tight">{item.nome}</h3>
+                        <div className="mb-4 flex flex-col sm:flex-row justify-between text-xs font-bold border border-slate-200 bg-white px-3 py-2 rounded-lg shadow-sm gap-2">
+                          <span className="text-slate-500 uppercase flex justify-between w-full sm:w-auto">Adq: <span className="text-slate-800 font-black text-sm ml-2">{item.totalAdquirido}</span></span>
+                          <span className="text-[#20B2AA] uppercase sm:border-l-2 sm:border-slate-200 sm:pl-3 flex justify-between w-full sm:w-auto">Em Estoque: <span className="font-black text-sm ml-2">{item.disponivel}</span></span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-200">
+                        <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Solicitado:</span>
+                        <div className="flex items-center space-x-2">
+                          <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">-</button>
+                          <input type="number" min="0" value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-16 md:w-20 text-center py-2 md:py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none text-base"/>
+                          <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">+</button>
+                        </div>
+                      </div>
+
+                      {activeTab === 'editar_pedido' && quantidadeEscolhida > 0 && (
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+                          <span className="text-sm font-bold text-[#20B2AA] uppercase tracking-wider">Enviado:</span>
+                          <div className="flex items-center space-x-2">
+                            <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada - 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">-</button>
+                            <input type="number" min="0" value={quantidadeEnviada || ''} onChange={(e) => handleEnviadoChange(item.id, e.target.value)} className="w-16 md:w-20 text-center py-2 md:py-1 bg-[#20B2AA]/10 border-2 border-[#20B2AA] text-[#008080] rounded-md font-bold focus:outline-none text-base"/>
+                            <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada + 1)} className="w-10 h-10 md:w-8 md:h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">+</button>
                           </div>
-                          <div className="text-slate-500">
-                            {isExpanded ? <IconChevronUp /> : <IconChevronDown />}
-                          </div>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="p-4 border-t border-slate-200 bg-[#F9F6F0]">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {items.map((item) => {
-                                const quantidadeEscolhida = pedidos[item.id] || 0;
-                                const quantidadeEnviada = enviados[item.id] || 0;
-
-                                return (
-                                  <div key={item.id} className="p-4 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-between hover:border-slate-300 transition-colors shadow-sm">
-                                    <div>
-                                      <h3 className="font-bold text-slate-800 text-sm mb-2 leading-tight">{item.nome}</h3>
-                                      <div className="mb-4 flex flex-col sm:flex-row justify-between text-[10px] font-bold border border-slate-200 bg-slate-50 px-2 py-1.5 rounded-md shadow-sm gap-1">
-                                        <span className="text-slate-500 uppercase flex justify-between w-full sm:w-auto">Adq: <span className="text-slate-800 font-black ml-1">{item.totalAdquirido}</span></span>
-                                        <span className="text-[#20B2AA] uppercase sm:border-l-2 sm:border-slate-200 sm:pl-2 flex justify-between w-full sm:w-auto">Estoque: <span className="font-black ml-1">{item.disponivel}</span></span>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-200">
-                                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Solicitado:</span>
-                                      <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida - 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">-</button>
-                                        <input type="number" min="0" value={quantidadeEscolhida || ''} onChange={(e) => handleQuantidadeChange(item.id, e.target.value)} className="w-12 text-center py-1 bg-white border-2 border-slate-300 rounded-md font-bold focus:border-[#DC143C] focus:outline-none text-sm"/>
-                                        <button type="button" onClick={() => handleQuantidadeChange(item.id, quantidadeEscolhida + 1)} className="w-8 h-8 flex justify-center items-center bg-slate-200 rounded-md font-bold hover:bg-slate-300">+</button>
-                                      </div>
-                                    </div>
-
-                                    {activeTab === 'editar_pedido' && quantidadeEscolhida > 0 && (
-                                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                        <span className="text-xs font-bold text-[#20B2AA] uppercase tracking-wider">Enviado:</span>
-                                        <div className="flex items-center space-x-2">
-                                          <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada - 1)} className="w-8 h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">-</button>
-                                          <input type="number" min="0" value={quantidadeEnviada || ''} onChange={(e) => handleEnviadoChange(item.id, e.target.value)} className="w-12 text-center py-1 bg-[#20B2AA]/10 border-2 border-[#20B2AA] text-[#008080] rounded-md font-bold focus:outline-none text-sm"/>
-                                          <button type="button" onClick={() => handleEnviadoChange(item.id, quantidadeEnviada + 1)} className="w-8 h-8 flex justify-center items-center bg-[#20B2AA]/20 text-[#20B2AA] rounded-md font-bold hover:bg-[#20B2AA]/30">+</button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                     </div>
-                   );
+                        </div>
+                      )}
+                    </div>
+                  );
                 })}
               </div>
             )}
@@ -1140,7 +1029,7 @@ export default function App() {
 
           <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4 mb-20 gap-4">
             <div className="flex-1 w-full">
-              {mensagem && !modalNewConfirm.show && !modalEditConfirm.show && (
+              {mensagem && (
                 <div className={`p-4 rounded-lg flex items-center font-bold text-sm md:text-base ${mensagem.tipo === 'sucesso' ? 'bg-[#20B2AA]/20 text-[#20B2AA]' : 'bg-[#DC143C]/20 text-[#DC143C]'}`}>
                   <div className="mr-3 shrink-0">{mensagem.tipo === 'sucesso' ? <IconCheck /> : <IconAlert />}</div>
                   <p>{mensagem.texto}</p>
@@ -1151,9 +1040,9 @@ export default function App() {
               {submitting ? (
                 <div className="flex items-center space-x-2">
                   <GradientSpinner className="w-5 h-5" />
-                  <span>Preparando...</span>
+                  <span>Salvando...</span>
                 </div>
-              ) : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Revisar Pedido'}</span>}
+              ) : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Confirmar Pedido'}</span>}
             </button>
           </div>
         </form>
@@ -1787,9 +1676,8 @@ export default function App() {
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
             
             {(modalEditConfirm.error || modalNewConfirm.error) && (
-              <div className="mb-6 bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl relative shadow-sm">
-                 <strong className="block text-sm uppercase tracking-wider mb-1">Aviso do Sistema:</strong> 
-                 <span className="font-medium text-sm">{modalEditConfirm.error || modalNewConfirm.error}</span>
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                 <strong>Erro:</strong> {modalEditConfirm.error || modalNewConfirm.error}
               </div>
             )}
 
@@ -1819,7 +1707,7 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <button onClick={() => { setModalEditConfirm({show: false, step: 1, changesSummary: [], error: null}); setModalNewConfirm({show: false, changesSummary: [], error: null}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
+                  <button onClick={() => { setModalEditConfirm({show: false}); setModalNewConfirm({show: false}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
                     {modalEditConfirm.show ? 'Voltar' : 'Revisar Dados'}
                   </button>
                   <button onClick={() => modalEditConfirm.show ? setModalEditConfirm({...modalEditConfirm, step: 2, error: null}) : processSubmit(false)} disabled={submitting} className="flex-1 flex justify-center items-center py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800 disabled:opacity-70">
