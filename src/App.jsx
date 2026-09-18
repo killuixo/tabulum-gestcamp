@@ -84,13 +84,16 @@ export default function App() {
   const [formData, setFormData] = useState(initialFormState);
   const [pedidos, setPedidos] = useState({});
   const [enviados, setEnviados] = useState({});
+  const [showArticuladorExtra, setShowArticuladorExtra] = useState(false);
+  const [showLiderancaExtra, setShowLiderancaExtra] = useState(false);
+  const [expandedCats, setExpandedCats] = useState({});
   
   // Dados brutos da Planilha
   const [estoque, setEstoque] = useState([]);
   const [levasHeaders, setLevasHeaders] = useState([]);
   const [listaPedidos, setListaPedidos] = useState([]);
   
-  // Estados de Interface e Modais
+  // Estados de Interface
   const [loadingEstoque, setLoadingEstoque] = useState(false);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -103,11 +106,6 @@ export default function App() {
   const [modalViewOrder, setModalViewOrder] = useState({ show: false, order: null });
   const [modalLeva, setModalLeva] = useState({ show: false, step: 1, nome: '', itens: {}, error: null });
   const [updatingStatus, setUpdatingStatus] = useState(false);
-
-  // Novos Estados (Contatos discretos e Categorias)
-  const [showArticuladorExtra, setShowArticuladorExtra] = useState(false);
-  const [showLiderancaExtra, setShowLiderancaExtra] = useState(false);
-  const [expandedCats, setExpandedCats] = useState({});
 
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
@@ -191,7 +189,7 @@ export default function App() {
       const response = await fetch(url);
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro de conexão com a planilha do Google. Tente recarregar a página em instantes.'); }
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro de conexão com o Google. O servidor retornou uma resposta inválida.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       setEstoque(result.data || []);
@@ -214,7 +212,7 @@ export default function App() {
       const response = await fetch(`${url}${separator}action=pedidos`);
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha ao carregar pedidos. O servidor do Google retornou um erro temporário.'); }
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha de conexão com o Google. O servidor retornou uma resposta inválida.'); }
       if (result.status === 'error') throw new Error(result.message);
       if (result.type !== 'pedidos') throw new Error('A Planilha ainda está sincronizando. Aguarde.');
       setListaPedidos(result.data || []);
@@ -281,7 +279,12 @@ export default function App() {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('O servidor do Google retornou uma falha de conexão.'); }
+      try { 
+        result = JSON.parse(text); 
+      } catch (e) { 
+        throw new Error('Falha de conexão com a planilha do Google. O servidor retornou uma resposta inválida ou bloqueada. Tente novamente.'); 
+      }
+
       if (result.status === 'error') throw new Error(result.message);
       
       if (isEditMode) {
@@ -292,12 +295,13 @@ export default function App() {
         setModalNewConfirm({ show: false, changesSummary: [], error: null });
         setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
         resetForm();
+        window.scrollTo(0,0);
       }
     } catch (error) {
       if (isEditMode) {
-        setModalEditConfirm(prev => ({...prev, error: `Falha ao salvar edição: ${error.message}`}));
+        setModalEditConfirm(prev => ({...prev, error: error.message}));
       } else {
-        setModalNewConfirm(prev => ({...prev, error: `Falha ao enviar: ${error.message}`}));
+        setModalNewConfirm(prev => ({...prev, error: error.message}));
       }
     } finally {
       setSubmitting(false);
@@ -393,7 +397,7 @@ export default function App() {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro ao salvar nova leva. O servidor retornou uma falha de conexão.'); }
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha de conexão com o Google. O servidor retornou uma resposta inválida.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       setModalLeva({ show: false, step: 1, nome: '', itens: {}, error: null });
@@ -414,7 +418,7 @@ export default function App() {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro ao atualizar status. O servidor retornou uma falha de conexão.'); }
+      try { result = JSON.parse(text); } catch (e) { throw new Error('Falha de conexão com o Google. O servidor retornou uma resposta inválida.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       setListaPedidos(prev => prev.map(p => p.row === modalStatus.order.row ? { ...p, status: modalStatus.newStatus } : p));
@@ -837,7 +841,6 @@ export default function App() {
         )}
 
       {}
-      {/* Formulários Novo e Editar Pedido */}
       {(activeTab === 'novo_pedido' || activeTab === 'editar_pedido') && (
         <form onSubmit={handleSubmitRequest} className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 animate-in fade-in duration-300 print:hidden">
           
@@ -851,10 +854,11 @@ export default function App() {
              </div>
           )}
 
-          {/* Coluna Esquerda: Articulador e Liderança */}
-          <div className="md:col-span-5 flex flex-col gap-6">
+          {/* Coluna Esquerda: Articulador + Liderança */}
+          <div className="md:col-span-5 flex flex-col gap-6 h-full">
+            
             {/* Seção Articulador */}
-            <div className="bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+            <div className="bg-[#E5B80B] rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 flex-1">
               <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-800/30 pb-3">
                 <IconUser />
                 <h2 className="text-2xl font-bold text-slate-900">Articulador</h2>
@@ -863,12 +867,12 @@ export default function App() {
                 <label className="block text-sm font-bold text-slate-800 mb-1">Nome Completo <span className="text-[#DC143C]">*</span></label>
                 <input type="text" list="list-articuladores" required value={formData.articulador.nome} onChange={e => setFormData({...formData, articulador: {...formData.articulador, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
               </div>
-              
+
               <button type="button" onClick={() => setShowArticuladorExtra(!showArticuladorExtra)} className="text-sm font-bold text-slate-800 hover:text-slate-900 flex items-center mb-2 transition-colors focus:outline-none">
                 {showArticuladorExtra ? <IconChevronUp /> : <IconChevronDown />}
                 <span className="ml-1">{showArticuladorExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
               </button>
-              
+
               {showArticuladorExtra && (
                 <div className="animate-in slide-in-from-top-2">
                   <div className="mb-4">
@@ -884,16 +888,16 @@ export default function App() {
             </div>
 
             {/* Seção Liderança */}
-            <div className="bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800">
+            <div className="bg-[#20B2AA] text-slate-900 rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-2 border-slate-800 flex-1">
                <div className="flex items-center space-x-3 mb-6 border-b-2 border-slate-900/30 pb-3">
                 <IconUsers />
                 <h2 className="text-2xl font-bold">Liderança de Destino</h2>
               </div>
               <div className="mb-4">
-                 <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
-                 <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
+                  <label className="block text-sm font-bold text-slate-800 mb-1">Nome da Liderança <span className="text-[#DC143C]">*</span></label>
+                  <input type="text" list="list-liderancas" required value={formData.lideranca.nome} onChange={e => setFormData({...formData, lideranca: {...formData.lideranca, nome: e.target.value}})} className="w-full px-3 py-2 bg-white/80 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-slate-900" />
               </div>
-
+              
               <button type="button" onClick={() => setShowLiderancaExtra(!showLiderancaExtra)} className="text-sm font-bold text-slate-900 hover:text-slate-800 flex items-center mb-2 transition-colors focus:outline-none">
                 {showLiderancaExtra ? <IconChevronUp /> : <IconChevronDown />}
                 <span className="ml-1">{showLiderancaExtra ? 'Ocultar contatos' : 'Adicionar E-mail e Telefone'}</span>
@@ -991,7 +995,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Seleção de Materiais */}
+          {/* Seleção de Materiais com Sanfona */}
           <div className="md:col-span-12 bg-white rounded-2xl p-6 shadow-[6px_6px_0px_0px_rgba(220,20,60,1)] border-4 border-[#DC143C]">
             <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-200">
               <div className="text-[#DC143C]"><IconPackage /></div>
@@ -1138,7 +1142,7 @@ export default function App() {
 
           <div className="md:col-span-12 flex flex-col md:flex-row items-center justify-between bg-slate-900 rounded-2xl p-6 mt-4 mb-20 gap-4">
             <div className="flex-1 w-full">
-              {mensagem && (
+              {mensagem && !modalNewConfirm.show && !modalEditConfirm.show && (
                 <div className={`p-4 rounded-lg flex items-center font-bold text-sm md:text-base ${mensagem.tipo === 'sucesso' ? 'bg-[#20B2AA]/20 text-[#20B2AA]' : 'bg-[#DC143C]/20 text-[#DC143C]'}`}>
                   <div className="mr-3 shrink-0">{mensagem.tipo === 'sucesso' ? <IconCheck /> : <IconAlert />}</div>
                   <p>{mensagem.texto}</p>
@@ -1149,16 +1153,15 @@ export default function App() {
               {submitting ? (
                 <div className="flex items-center space-x-2">
                   <GradientSpinner className="w-5 h-5" />
-                  <span>Salvando...</span>
+                  <span>Preparando...</span>
                 </div>
-              ) : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Confirmar Pedido'}</span>}
+              ) : <span>{activeTab === 'editar_pedido' ? 'Salvar Alterações' : 'Revisar Pedido'}</span>}
             </button>
           </div>
         </form>
       )}
 
       {}
-      {/* RESTANTE DAS ABAS E TELAS COMO ESTAVAM (NÃO FORAM MODIFICADAS CONFORME INSTRUÇÃO) */}
       {activeTab === 'dashboard' && (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
           
@@ -1786,8 +1789,9 @@ export default function App() {
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
             
             {(modalEditConfirm.error || modalNewConfirm.error) && (
-              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                 <strong>Erro:</strong> {modalEditConfirm.error || modalNewConfirm.error}
+              <div className="mb-6 bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl relative shadow-sm">
+                 <strong className="block text-sm uppercase tracking-wider mb-1">Aviso do Sistema:</strong> 
+                 <span className="font-medium text-sm">{modalEditConfirm.error || modalNewConfirm.error}</span>
               </div>
             )}
 
@@ -1817,7 +1821,7 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <button onClick={() => { setModalEditConfirm({show: false}); setModalNewConfirm({show: false}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
+                  <button onClick={() => { setModalEditConfirm({show: false, step: 1, changesSummary: [], error: null}); setModalNewConfirm({show: false, changesSummary: [], error: null}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
                     {modalEditConfirm.show ? 'Voltar' : 'Revisar Dados'}
                   </button>
                   <button onClick={() => modalEditConfirm.show ? setModalEditConfirm({...modalEditConfirm, step: 2, error: null}) : processSubmit(false)} disabled={submitting} className="flex-1 flex justify-center items-center py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800 disabled:opacity-70">
