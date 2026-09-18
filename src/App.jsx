@@ -532,14 +532,17 @@ export default function App() {
     ? sortedPedidos.slice((viewConfig.page - 1) * CARDS_PER_PAGE, viewConfig.page * CARDS_PER_PAGE)
     : sortedPedidos; 
 
+  // Listas "brutas" para popular as Datalists dos Formulários sem restrição de filtros
   const rawUniqueArticuladores = [...new Set(listaPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean))].sort();
   const rawUniqueLiderancas = [...new Set(listaPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean))].sort();
   const rawUniqueLocais = [...new Set(listaPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean))].sort();
 
+  // Listas Dinâmicas (Faceted Search) - Mostram apenas opções disponíveis com os filtros atuais (+ as ativas)
   const uniqueArticuladores = [...new Set([...sortedPedidos.map(p => (p.articuladorNome || '').trim()).filter(Boolean), ...filters.articulador])].sort();
   const uniqueLiderancas = [...new Set([...sortedPedidos.map(p => (p.liderancaNome || '').trim()).filter(Boolean), ...filters.lideranca])].sort();
   const uniqueLocais = [...new Set([...sortedPedidos.map(p => getMunicipioString(p.enderecoRecebimento || p.modoRecebimento)).filter(Boolean), ...filters.local])].sort();
 
+  // Locais Atendidos (Dashboard) respeita o filtro
   const locaisStats = sortedPedidos.reduce((acc, p) => {
     const loc = getMunicipioString(p.enderecoRecebimento || p.modoRecebimento);
     if (loc) acc[loc] = (acc[loc] || 0) + 1;
@@ -550,14 +553,15 @@ export default function App() {
   const aggregatedRequests = {};
   let globalTotalAdquirido = 0;
   let globalTotalDisponivel = 0;
-  let globalTotalSolicitado = 0;
-  let globalAbsoluteTotalSolicitado = 0; 
+  let globalTotalSolicitado = 0; // Calculado sobre sortedPedidos
+  let globalAbsoluteTotalSolicitado = 0; // Calculado sobre TODOS os pedidos (ListaPedidos bruta) para a Saída Natural
 
   estoque.forEach(item => {
     globalTotalAdquirido += Number(item.totalAdquirido) || 0;
     globalTotalDisponivel += Number(item.disponivel) || 0;
   });
 
+  // Demanda das Linhas e Tabela Filtrada do Dashboard (respeita sortedPedidos e filtro do dropdown)
   const pedidosParaEstoque = sortedPedidos.filter(p => {
     if (estoqueStatusFilter === 'TODOS') return true;
     return (p.status || 'PENDENTE').toUpperCase() === estoqueStatusFilter;
@@ -575,6 +579,7 @@ export default function App() {
     });
   });
 
+  // Saída Natural deve ser Global (independe de filtros de cidade, etc), logo usa a lista bruta
   listaPedidos.forEach(pedido => {
     const qts = (pedido.quantidades || '').split('\n');
     qts.forEach(q => {
@@ -584,8 +589,9 @@ export default function App() {
 
   const saidaNatural = (globalTotalAdquirido - globalAbsoluteTotalSolicitado) - globalTotalDisponivel;
   const pctSaidaNatural = globalTotalAdquirido > 0 ? (saidaNatural / globalTotalAdquirido) * 100 : 0;
-  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; 
+  const percentualGlobalEstoque = globalTotalAdquirido > 0 ? (globalTotalSolicitado / globalTotalAdquirido) * 100 : 0; // Pressão Filtrada
   
+  // Pizza Chart respeita o filtro
   const qtdEnviados = sortedPedidos.filter(p => (p.status || '').toUpperCase() === 'ENVIADO').length;
   const qtdPendentes = sortedPedidos.filter(p => (p.status || '').toUpperCase() !== 'ENVIADO').length;
   const totalStatus = qtdEnviados + qtdPendentes;
@@ -697,6 +703,16 @@ export default function App() {
       </th>
     );
   };
+
+  // Cálculo da Média de Materiais por Dia
+  const calcMediaDiaria = () => {
+    const startDate = new Date(2026, 7, 18); // 18/08/2026 (mês 7 no JS)
+    const today = new Date();
+    const diffTime = Math.abs(today - startDate);
+    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    return globalTotalSolicitado / diffDays;
+  };
+  const mediaDiariaMaterial = calcMediaDiaria();
 
   // Agrupamento para as Categorias Recolhíveis
   const groupedEstoque = activeEstoque.reduce((acc, item) => {
@@ -1414,10 +1430,16 @@ export default function App() {
 
           {/* GRÁFICO DE LINHA DO TEMPO NO DASHBOARD */}
           <div className="bg-white rounded-2xl border-2 border-slate-800 p-6 shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] relative z-0 print:shadow-none print:break-inside-avoid">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b-2 border-slate-200 pb-4 mb-6">
-                <div>
-                   <h2 className="text-2xl font-black text-slate-900">Evolução das Entregas (Filtrado)</h2>
-                   <p className="text-slate-500 text-sm mt-1">Acompanhe a demanda dos materiais sobre os dados filtrados.</p>
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b-2 border-slate-200 pb-4 mb-6 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                   <div>
+                      <h2 className="text-2xl font-black text-slate-900">Evolução das Entregas (Filtrado)</h2>
+                      <p className="text-slate-500 text-sm mt-1">Acompanhe a demanda dos materiais sobre os dados filtrados.</p>
+                   </div>
+                   <div className="bg-[#20B2AA]/10 border-2 border-[#20B2AA]/30 rounded-xl px-4 py-2 flex flex-col items-center justify-center min-w-[120px] print:hidden">
+                      <span className="text-[10px] font-black text-[#008080] uppercase tracking-widest mb-1">Média / Dia</span>
+                      <span className="text-xl font-black text-[#20B2AA] leading-none">{mediaDiariaMaterial.toFixed(1)} <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">un.</span></span>
+                   </div>
                 </div>
                 <div className="flex gap-4 mt-4 md:mt-0 bg-slate-100 p-1.5 rounded-lg border border-slate-200 print:hidden">
                    <label className={`cursor-pointer px-4 py-2 rounded-md font-bold text-sm transition-colors ${chartDateField === 'data' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>
@@ -1787,9 +1809,8 @@ export default function App() {
           <div className="bg-white rounded-2xl border-4 border-slate-900 max-w-md w-full p-6 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] animate-in fade-in zoom-in-95 duration-200">
             
             {(modalEditConfirm.error || modalNewConfirm.error) && (
-              <div className="mb-6 bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl relative shadow-sm">
-                 <strong className="block text-sm uppercase tracking-wider mb-1">Aviso do Sistema:</strong> 
-                 <span className="font-medium text-sm">{modalEditConfirm.error || modalNewConfirm.error}</span>
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                 <strong>Erro:</strong> {modalEditConfirm.error || modalNewConfirm.error}
               </div>
             )}
 
@@ -1819,7 +1840,7 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <button onClick={() => { setModalEditConfirm({show: false, step: 1, changesSummary: [], error: null}); setModalNewConfirm({show: false, changesSummary: [], error: null}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
+                  <button onClick={() => { setModalEditConfirm({show: false}); setModalNewConfirm({show: false}); }} disabled={submitting} className="flex-1 py-4 sm:py-3 bg-white text-slate-700 font-bold border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50">
                     {modalEditConfirm.show ? 'Voltar' : 'Revisar Dados'}
                   </button>
                   <button onClick={() => modalEditConfirm.show ? setModalEditConfirm({...modalEditConfirm, step: 2, error: null}) : processSubmit(false)} disabled={submitting} className="flex-1 flex justify-center items-center py-4 sm:py-3 bg-slate-900 text-white font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(20,184,166,1)] hover:bg-slate-800 disabled:opacity-70">
