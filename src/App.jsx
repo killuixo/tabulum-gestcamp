@@ -281,7 +281,7 @@ export default function App() {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch (e) { throw new Error('Erro ao salvar. O servidor do Google retornou uma falha de conexão.'); }
+      try { result = JSON.parse(text); } catch (e) { throw new Error('O servidor do Google retornou uma falha de conexão.'); }
       if (result.status === 'error') throw new Error(result.message);
       
       if (isEditMode) {
@@ -289,13 +289,16 @@ export default function App() {
         setActiveTab('dashboard'); 
         fetchPedidosData(); 
       } else {
-        setModalNewConfirm({show: false, summary: null, error: null});
+        setModalNewConfirm({ show: false, changesSummary: [], error: null });
         setMensagem({ tipo: 'sucesso', texto: 'Pedido registrado com sucesso na planilha!' });
         resetForm();
       }
     } catch (error) {
-      if (isEditMode) setModalEditConfirm(prev => ({...prev, error: `Falha ao salvar edição: ${error.message}`}));
-      else setMensagem({ tipo: 'erro', texto: `Falha ao enviar: ${error.message}` });
+      if (isEditMode) {
+        setModalEditConfirm(prev => ({...prev, error: `Falha ao salvar edição: ${error.message}`}));
+      } else {
+        setModalNewConfirm(prev => ({...prev, error: `Falha ao enviar: ${error.message}`}));
+      }
     } finally {
       setSubmitting(false);
     }
